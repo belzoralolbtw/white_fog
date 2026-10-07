@@ -1,8 +1,10 @@
 package com.whitefog.client;
 
 import com.whitefog.WhiteFog;
+import com.whitefog.client.dev.ItemModelSelfCheck;
 import com.whitefog.client.hud.WhiteFogHud;
 import com.whitefog.client.network.WhiteFogClientNetworking;
+import com.whitefog.client.screen.FlatStoneScreen;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
@@ -40,6 +42,10 @@ public class WhiteFogClient implements ClientModInitializer {
 		// Заглушка HUD (MC 26.2 Fabric HudElementRegistry).
 		WhiteFogHud.register(playerState);
 
+		// Этап 1.4: экран пустой станции «Плоский камень» (регистрация MenuScreens).
+		FlatStoneScreen.register();
+		WhiteFog.LOGGER.info("White Fog: flat-stone screen registered (stage 1.4)");
+
 		// Сбрасываем кэш при выходе из мира.
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> playerState.clear());
 
@@ -49,6 +55,9 @@ public class WhiteFogClient implements ClientModInitializer {
 			WhiteFog.LOGGER.info(
 					"White Fog: client initializer ready (stage 1.3 regression fix), MultiPlayerGameModeMixin applied={}",
 					mixinApplied);
+
+			// Dev-only: проверка реального bake item-моделей контента (см. ItemModelSelfCheck).
+			ItemModelSelfCheck.register();
 		}
 	}
 

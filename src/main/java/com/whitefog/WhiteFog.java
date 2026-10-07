@@ -1,9 +1,12 @@
 package com.whitefog;
 
 import com.whitefog.breaking.BreakTimerService;
+import com.whitefog.content.WhiteFogContent;
 import com.whitefog.crafting.CraftingLock;
 import com.whitefog.network.WhiteFogPayloads;
 import com.whitefog.server.WhiteFogServer;
+import com.whitefog.station.FlatStoneInteractions;
+import com.whitefog.station.RecoveryService;
 
 import net.fabricmc.api.ModInitializer;
 
@@ -50,6 +53,13 @@ public class WhiteFog implements ModInitializer {
 
 		// 5) Правила разрушения блоков и станций (этап 1.3): сервис сессий и таймера.
 		BreakTimerService.register();
+
+		// 6) Контент этапа 1.4: блоки/BlockItem flat_stone + small_stone, block entity, меню.
+		WhiteFogContent.register();
+
+		// 7) Серверные interaction'ы станции/камушка и recovery-задача (этап 1.4).
+		FlatStoneInteractions.register();
+		RecoveryService.register();
 
 		LOGGER.info("White Fog common initialized (mod id: {})", MOD_ID);
 	}

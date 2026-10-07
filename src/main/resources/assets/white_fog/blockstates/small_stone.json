@@ -1,0 +1,6 @@
+{
+	"variants": {
+		"variant=false": { "model": "white_fog:block/small_stone_0" },
+		"variant=true": { "model": "white_fog:block/small_stone_1" }
+	}
+}

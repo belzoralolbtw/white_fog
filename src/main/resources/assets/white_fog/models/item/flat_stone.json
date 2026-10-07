@@ -1,0 +1,10 @@
+{
+	"parent": "white_fog:block/flat_stone",
+	"display": {
+		"gui": {
+			"rotation": [30, 225, 0],
+			"translation": [0.0, 3.248, 1.875],
+			"scale": [0.625, 0.625, 0.625]
+		}
+	}
+}

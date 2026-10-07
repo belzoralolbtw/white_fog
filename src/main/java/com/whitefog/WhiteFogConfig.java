@@ -160,4 +160,45 @@ public final class WhiteFogConfig {
 	public static final String BREAK_MOD_PICKAXE_IRON = "white_fog:iron_pickaxe";
 	/** Exact item id модового кайла, tier STEEL (регистрация предмета — этап 6.4). */
 	public static final String BREAK_MOD_PICKAXE_STEEL = "white_fog:steel_pickaxe";
+
+	// ------------------------------------------------------------------
+	// Этап 1.4 — плоский камень и камушки (значения паспорта из ROADMAP_STEPS.md)
+	// ------------------------------------------------------------------
+
+	/** Размер стака «Плоский камень» (flat_stone). */
+	public static final int FLAT_STONE_STACK_SIZE = 16;
+	/** Размер стака «Камушка» (small_stone). */
+	public static final int SMALL_STONE_STACK_SIZE = 64;
+	/** Масса «Плоского камня» в кг (для будущей системы веса, этап 1.x+). */
+	public static final double FLAT_STONE_MASS_KG = 3.0D;
+	/** Масса «Камушки» в кг (для будущей системы веса, этап 1.x+). */
+	public static final double SMALL_STONE_MASS_KG = 0.2D;
+	/**
+	 * Cooldown подбора камушка на игрока, тиков (утверждено ТЗ: камушек имеет cooldown 2 тика,
+	 * чтобы двойной клик не выдал больше одной камушки).
+	 */
+	public static final int SMALL_STONE_PICKUP_COOLDOWN_TICKS = 2;
+	/**
+	 * Задержка подбора у остатка, выброшенного при полном инвентаре (pending drop),
+	 * тиков. Утверждено ТЗ этапа 1.4.
+	 */
+	public static final int PENDING_DROP_PICKUP_DELAY_TICKS = 10;
+	/**
+	 * Recovery-взаимодействие «2 cobblestone → 1 поставленный flat_stone»:
+	 * длительность в игровых тиках (утверждено ТЗ: 100 тиков).
+	 */
+	public static final int RECOVERY_FLAT_STONE_TICKS = 100;
+	/** Recovery: сколько cobblestone требуется (утверждено ТЗ: 2). */
+	public static final int RECOVERY_COBBLESTONE_COST = 2;
+	/**
+	 * Порог отмены recovery по движению игрока, в квадраte блоков.
+	 * 0.05 ≈ 0.22 блока: микро-дрожание камеры задачу не отменяет, реальный шаг — отменяет.
+	 */
+	public static final double RECOVERY_CANCEL_MOVE_SQR = 0.05D;
+	/** schemaVersion block entity станции (задел под миграции, этап 1.4 = 1). */
+	public static final int FLAT_STONE_SCHEMA_VERSION = 1;
+	/** Точный текст отказа для занятой станции (утверждён ТЗ этапа 1.4). */
+	public static final String MESSAGE_STATION_BUSY = "Сначала забери материалы и результат";
+	/** Точный текст отказа для полного инвентаря (поверх pending-дропа). */
+	public static final String MESSAGE_INVENTORY_FULL = "Инвентарь полон — предмет выпал рядом";
 }

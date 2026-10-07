@@ -5,6 +5,8 @@ import com.whitefog.WhiteFogAttachments;
 import com.whitefog.breaking.BreakTimerService;
 import com.whitefog.server.command.WhiteFogDebugCommand;
 import com.whitefog.state.PlayerSurvivalState;
+import com.whitefog.station.RecoveryService;
+import com.whitefog.station.SmallStonePickup;
 
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityLevelChangeEvents;
@@ -86,12 +88,18 @@ public final class WhiteFogServer {
 
 		// Этап 1.3: серверный тик сессий разрушения (единый END_SERVER_TICK, без второго обработчика).
 		BreakTimerService.tickAll(server);
+
+		// Этап 1.4: серверный тик recovery-задач «2 cobblestone -> 1 flat_stone».
+		RecoveryService.tickAll(server);
 	}
 
-	/** Отключение игрока: сбрасываем сессию разрушения и подсказки (этап 1.3). */
+	/** Отключение игрока: сбрасываем сессию разрушения, подсказки и recovery (этапы 1.3/1.4). */
 	private static void onPlayerDisconnect(ServerGamePacketListenerImpl handler, MinecraftServer server) {
 		try {
-			BreakTimerService.clearPlayer(handler.getPlayer());
+			ServerPlayer player = handler.getPlayer();
+			BreakTimerService.clearPlayer(player);
+			RecoveryService.clear(player);
+			SmallStonePickup.clear(player);
 		} catch (RuntimeException e) {
 			WhiteFog.LOGGER.error("White Fog: failed to clear break session on disconnect", e);
 		}
@@ -116,6 +124,8 @@ public final class WhiteFogServer {
 	private static void onPlayerRespawn(ServerPlayer oldPlayer, ServerPlayer newPlayer, boolean alive) {
 		try {
 			BreakTimerService.clearSession(newPlayer);
+			RecoveryService.clear(newPlayer);
+			SmallStonePickup.clear(newPlayer);
 			PlayerSurvivalState state = WhiteFogAttachments.getOrCreate(newPlayer);
 			state.invalidateSync();
 			MinecraftServer server = newPlayer.level().getServer();
@@ -134,6 +144,8 @@ public final class WhiteFogServer {
 	private static void onPlayerChangeLevel(ServerPlayer player, ServerLevel origin, ServerLevel destination) {
 		try {
 			BreakTimerService.clearSession(player);
+			RecoveryService.clear(player);
+			SmallStonePickup.clear(player);
 			PlayerSurvivalState state = WhiteFogAttachments.getOrCreate(player);
 			state.invalidateSync();
 			MinecraftServer server = destination.getServer();

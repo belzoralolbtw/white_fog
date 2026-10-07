@@ -8,6 +8,10 @@
 - **Этап 1.3 — REGRESSION FIX клиентского предсказания (запрошен явно по жалобе пользователя).** Первый hotfix отменял ваниль только для `DENY_*`, поэтому (а) для `ALLOW` земля ломалась ванильно быстро → сервер откатывал → цикл до серверного commit; (б) при `DENY_*` подавленный `START` не доходил до сервера, и серверная подсказка «Слишком крепко — нужен инструмент» не показывалась. Теперь ванильное предсказание подавляется для ВСЕХ контролируемых категорий (`classify != UNCLASSIFIED`); для `ALLOW` клиент вручную шлёт ровно один `ServerboundPlayerActionPacket(START_DESTROY_BLOCK, …, sequence)` через ванильный `startPrediction` (корректная sequence) и `ABORT` при отпускании/смене цели/инструмента; для `DENY_*` `START` не шлётся, а подсказка показывается ЛОКАЛЬНО в action bar (`LocalPlayer#sendOverlayMessage`) с cooldown 20 тиков на причину. `UNCLASSIFIED` — ваниль. Сборка `BUILD SUCCESSFUL` (`logs/build_20261007_221853.txt`); client smoke `scripts\client_smoke.bat` — `status=SUCCESS`, маркер `MultiPlayerGameModeMixin applied=true` (`logs/client_smoke_20261007_221911.txt`); server smoke — `status=SUCCESS` (`logs/server_smoke_20261007_221939.txt`); sandbox — `passed=102 failed=0` (`logs/break_timer_selftest_20261007_221905.txt`). См. раздел «Этап 1.3 — regression fix».
 - **Этап 1.3 — SWING FIX визуального отклика ALLOW (запрошен явно).** После regression fix'а при зажатой ЛКМ по разрешённым блокам не было анимации удара: `Minecraft#continueAttack` делает `addBreakingBlockEffect`+`player.swing` только если `continueDestroyBlock` вернул `true`, а миксин гасил метод. Теперь для контролируемого `ALLOW` `continueDestroyBlock` (`@Inject at HEAD, cancellable`) возвращает `true`, поэтому вызывающий выполняет ванильный визуал (частицы + swing, ванильная cadence). Тело метода всё равно пропущено: ванильного прогресса/локального удаления/пакетов `START`/`STOP` нет, серверный таймер не затронут. `DENY_*` возвращает `false` (без свинга, поведение сохранено), `UNCLASSIFIED` — ваниль. Сборка `BUILD SUCCESSFUL` (`logs/build_20261007_223929.txt`); client smoke `scripts\client_smoke.bat` — `status=SUCCESS`, `MultiPlayerGameModeMixin applied=true` (`logs/client_smoke_20261007_223941.txt`); server smoke — `status=SUCCESS` (`logs/server_smoke_20261007_223512.txt`); sandbox — `passed=118 failed=0` (`logs/break_timer_selftest_20261007_223354.txt`). См. раздел «Этап 1.3 — swing fix».
 - **Интерактивная приёмка (пользователь, вручную) — ПОДТВЕРЖДЕНА для этапов 1.1/1.2/1.3, включая hotfix/regression/swing fix.** Пользователь подтвердил, что версия работает «идеально»; версия `0.1.0` **закрепляется** для первичной публикации (PUBLIC GitHub). Подтверждение относится к поведению, описанному в разделах ниже. Проверки, которые явно НЕ проводились (смерть/`copyOnDeath`, повторный вход после смерти, второй игрок, смена измерения, выгрузка/загрузка чанка) — **не заявляются** и остаются в TODO.
+- **Этап 1.4 «Плоский камень и камушки» — РЕАЛИЗОВАН (по новой обязательной спецификации ROADMAP строк 22–31).** Зарегистрированы блоки/BlockItem `white_fog:flat_stone` (станция, BlockEntity) и `white_fog:small_stone` (обычный блок, без BlockEntity), `FlatStoneBlockEntity` (schemaVersion/owner/escrow/output/progress/mode/revision, NBT через ValueInput/ValueOutput), пустое `FlatStoneMenu` + клиентский `FlatStoneScreen`; сервер-авторитетная установка (только верхняя грань полной твёрдой опоры, запрет жидкости/прав), снятие станции за один interaction (Shift+ПКМ пустой рукой, занятую не снимает: «Сначала забери материалы и результат»), подбор камушка main-hand (ПКМ) и обычный block loot (ЛКМ), recovery-взаимодействие «2 cobblestone → 1 flat_stone за 100 тиков» (движение/урон отменяют без потерь). Vanilla `minecraft:stone_slab` станцией больше НЕ является. Сборка `BUILD SUCCESSFUL` (`logs/build_20261007_233317.txt`); server smoke `status=SUCCESS` (`logs/server_smoke_20261007_233345.txt`); client smoke `status=SUCCESS` (`logs/client_smoke_20261007_233417.txt`, `MultiPlayerGameModeMixin applied=true`, `flat-stone screen registered`); client resource-reload (45 c после reload) — без model/texture ошибок (`logs/client_res_check_20261007_232709.txt`); sandbox `tests\station` — `passed=270 failed=0` (`logs/station_selftest_20261007_233343.txt`); `tests\break_timer` не сломан — `passed=118 failed=0` (`logs/break_timer_selftest_20261007_233344.txt`). Интерактивная приёмка 1.4 ещё НЕ проводилась. См. раздел «Этап 1.4 (полностью)».
+- **Этап 1.4 — HOTFIX видимости предмета `small_stone` (запрошен явно).** `/give @s white_fog:small_stone` выдавал предмет (стак попадал в инвентарь и сохранялся в playerdata), но иконка была почти не видна: у неё не было отдельной item-модели, поэтому она использовала block-модель `small_stone_0` (габаритная коробка `x/z 5..11, y 0..3` → bbox ≈ 0.26) без `display`, из-за чего в GUI предмет рендерился как **крошечная тёмная точка**. Регистрация/модель были корректны (модель пеклась, не `MissingItemModel`, 12 quads) — дефект был только в масштабе. Добавлена отдельная item-модель `assets/white_fog/models/item/small_stone.json` (parent `white_fog:block/small_stone_0` + явный `display` со `gui.scale 1.25`), `items/small_stone.json` теперь ссылается на неё; мировая geometry не изменилась. Плюс dev-only self-check `client/dev/ItemModelSelfCheck.java` (строка `WHITEFOG_ITEM_MODEL_SELFTEST`). Сборка `BUILD SUCCESSFUL` (`logs/build_20261008_*.txt`); client smoke `status=SUCCESS` (`logs/client_smoke_20261008_001202.txt`); server smoke `status=SUCCESS`; sandboxes `passed=270/0` и `passed=118/0`. См. раздел «Этап 1.4 — hotfix видимости предмета small_stone».
+- **Этап 1.4 — HOTFIX центрирования GUI-иконки `small_stone` (запрошен явно).** После фикса видимости иконка «уехала вниз, не по центру». Причина — не размер, а **положение bbox**: элементы `white_fog:block/small_stone_0` лежат в `y 0..3` (bbox-центр `(0.5, 0.09375, 0.5)`, не `(0.5,0.5,0.5)`), поэтому стандартный `gui`-transform (`rotation [30,225,0]`, `scale 1.25`) проецирует bbox-центр на `[0, −7.036, −4.062]` px от центра слота. Изменён **только** `gui.translation` в `assets/white_fog/models/item/small_stone.json`: `[0,0,0]` → `[0.0, 7.036, 4.062]` (rotation/scale и остальные контексты `display` не тронуты). Доказано sandbox `tests\item_gui_center` реальным `ItemTransform.apply`/`PoseStack` 26.2: bbox-центр после GUI rotation/scale/translation ровно `(0,0,0)`, размер сохранён. Сборка `BUILD SUCCESSFUL` (`logs/build_20261008_002731.txt`); sandbox before→after `status=FAILURE` (`logs/item_gui_center_selftest_20261008_002656.txt`) → `status=SUCCESS` (`logs/item_gui_center_selftest_20261008_002717.txt`); bounded runtime probe `status=SUCCESS`, `WHITEFOG_ITEM_MODEL_SELFTEST ... small[... quads=12] status=SUCCESS` (`logs/itemmodel_probe_20261008_002905.txt`). См. раздел «Этап 1.4 — hotfix центрирования GUI-иконки small_stone».
+- **Этап 1.4 — HOTFIX центрирования GUI-иконки `flat_stone` (запрошен явно).** Пользователь: после фикса `small_stone` иконка `flat_stone` в инвентаре «немного смещена вниз». Причина та же, что у `small_stone`: `items/flat_stone.json` ссылалась **напрямую** на block-модель `white_fog:block/flat_stone`, а её bbox (элементы `x/z 1..15`, `y 0..4`) имеет центр `(0.5, 0.125, 0.5)` — ниже центра слота. Стандартный наследуемый от `minecraft:block/block` `gui`-transform (`rotation [30,225,0]`, `translation [0,0,0]`, `scale 0.625`) проецировал bbox-центр на `[0, −3.248, −1.875]` px. Добавлена отдельная предметная модель `assets/white_fog/models/item/flat_stone.json` (`parent: white_fog:block/flat_stone` + **только** `display.gui` с тем же rotation/scale и исправленным `translation [0.0, 3.248, 1.875]`), `items/flat_stone.json` переключена на `white_fog:item/flat_stone`. Прочие контексты `display` наследуются из `minecraft:block/block` без изменений (merge по контексту целиком — `ResolvedModel.findTopTransform`, javap 26.2). Мировая geometry/blockstate/registration/loot/размер предмета не тронуты. Сборка `BUILD SUCCESSFUL` (`logs/build_20261008_003736.txt`); sandbox `tests\item_gui_center` до/после — `passed=13 failed=1` (`logs/item_gui_center_selftest_20261008_003712.txt`) → `passed=14 failed=0`, `status=SUCCESS` (`logs/item_gui_center_selftest_20261008_003726.txt`); bounded runtime probe — `status=SUCCESS`, `WHITEFOG_ITEM_MODEL_SELFTEST flat[... quads=24] small[... quads=12] status=SUCCESS` (`logs/itemmodel_probe_20261008_003754.txt`). См. раздел «Этап 1.4 — hotfix центрирования GUI-иконки flat_stone».
 - **Цель:** Minecraft **26.2**, Fabric Loader **0.19.5**, Fabric API **0.161.0+26.2**, Java **25+** (собрано JDK 26.0.2.1), Gradle **9.7.1**, Loom **1.18.3**.
 - Stonecutter/Forge/NeoForge/прочие версии MC **не используются**; строки `mappings` в сборке нет (26.2 деобфусцирован).
 - Mod ID: `white_fog`; group `com.whitefog`; version `0.1.0`; env `*` (запускается и как dedicated server, и как клиент).
@@ -33,6 +37,17 @@ src/main/java/com/whitefog/            # COMMON — не импортирует 
   server/SurvivalTicker.java           # логика тика (normalize + интервалы процессов)
   server/PlayerStateSyncService.java   # отправка снимка (изменение/период/canSend)
   server/command/WhiteFogDebugCommand.java  # /whitefog debug [player] (только dev)
+  content/WhiteFogContent.java          # этап 1.4: регистрация блоков/BlockItem/BlockEntityType/MenuType (setId обязателен)
+  content/block/FlatStoneBlock.java     # этап 1.4: станция (BaseEntityBlock, FACING, SHAPE 1..15/0..4, canSurvive+neighborChanged)
+  content/block/SmallStoneBlock.java    # этап 1.4: камушек (instabreak, VARIANT детерминирован, collision пустая)
+  content/block/entity/FlatStoneBlockEntity.java # schemaVersion/owner/escrow/output/progress/mode/revision + preRemoveSideEffects
+  content/item/GroundPlacedBlockItem.java # этап 1.4: установка только на верхнюю грань полной твёрдой опоры
+  content/menu/FlatStoneMenu.java       # этап 1.4: пустое меню станции (0 слотов; вкладка рецептов пустая до 3.5)
+  station/FlatStoneInteractions.java    # этап 1.4: Fabric USE_ITEM_ON/USE_WITHOUT_ITEM (открыть/снять/подобрать/recovery)
+  station/FlatStoneRemoval.java         # этап 1.4: снятие станции за один interaction, ровно 1 предмет, busy-отказ
+  station/SmallStonePickup.java         # этап 1.4: подбор камушка (main-hand, cooldown 2, block loot подавлен)
+  station/StationDropHelper.java        # этап 1.4: inventory insert + pending ItemEntity (pickup delay 10)
+  station/RecoveryService.java          # этап 1.4: recovery 2 cobblestone -> 1 flat_stone за 100 тиков (world interaction)
   mixin/AbstractContainerMenuMixin.java       # этап 1.2: отмена clicked по сетке/результату InventoryMenu/CraftingMenu (client+server)
   mixin/RecipeManagerMixin.java               # этап 1.2: @ModifyVariable apply(RecipeMap) — удаление всех CRAFTING-рецептов
   mixin/ServerGamePacketListenerImplMixin.java # этап 1.2: блок placeRecipe и creative set-slot в слоты крафта
@@ -42,6 +57,8 @@ src/client/java/com/whitefog/client/   # CLIENT — только client API
   ClientPlayerState.java               # клиентский кэш снимка (не источник истины)
   client/network/WhiteFogClientNetworking.java  # ClientPlayNetworking.registerGlobalReceiver
   client/hud/WhiteFogHud.java          # заглушка HudElement (пока ничего не рисует)
+  client/screen/FlatStoneScreen.java   # этап 1.4: AbstractContainerScreen<FlatStoneMenu>, своя панель (GuiGraphicsExtractor), регистрация в MenuScreens
+  client/dev/ItemModelSelfCheck.java   # этап 1.4 hotfix: dev-only проверка bake item-моделей flat_stone/small_stone (WHITEFOG_ITEM_MODEL_SELFTEST)
   client/mixin/MultiPlayerGameModeMixin.java # этап 1.3 swing fix: подавление ванильного тела для ВСЕХ контролируемых; ALLOW → ручной START/ABORT + возврат true (ванильный визуал удара), DENY_* → false + локальная подсказка (client-only)
 src/client/resources/white_fog.client.mixins.json # client-only миксин-конфиг (package com.whitefog.client.mixin, "client": [...])
 src/main/resources/fabric.mod.json     # entrypoints main/client, mixins (common + client env), depends minecraft ~26.2
@@ -54,10 +71,21 @@ README.md                              # краткое описание про�
 .gitignore                             # игнор logs/build/.gradle/run/secrets/local configs/temp
 .github/workflows/build.yml            # CI Fabric-шаблона: gradlew build, без секретов
 ROADMAP_STEPS.md                       # ТЗ (не редактировать)
+src/main/resources/assets/white_fog/   # этап 1.4: blockstates/models(block+item)/items/textures/lang flat_stone + small_stone
+src/main/resources/data/white_fog/loot_table/blocks/ # этап 1.4: flat_stone.json, small_stone.json (без survives_explosion)
 tests/break_timer/                     # ЭТАП 1.3: независимый sandbox (НЕ в основном build, НЕ трогает src/)
   src/com/whitefog/tests/breaktimer/   # чистая логика lifecycle таймера разрушения (без Minecraft) + ClientGate (клиентский гейт)
   run_break_timer_selftest.bat         # javac+java foreground, hard-timeout, UTF-8 лог + .result в logs/
   README.md                            # что доказывает и что НЕ доказывает (не runtime-proof)
+tests/station/                         # ЭТАП 1.4: независимый sandbox станции/камушка (не в build, не трогает src/)
+  src/com/whitefog/tests/station/      # SimWorld/PlayerRef/StationService/SelfTest — чистая логика без Minecraft
+  run_station_selftest.bat             # javac+java foreground, hard-timeout, UTF-8 лог + .result в logs/
+  README.md                            # 19 сценариев; что доказывает и что НЕ доказывает (не runtime-proof)
+tests/item_gui_center/                 # ЭТАП 1.4 hotfix: sandbox центрирования GUI-иконок small_stone И flat_stone
+  src/com/whitefog/tests/guiicon/      # GuiIconCenterSelfTest — реальный ItemTransform.apply/PoseStack 26.2 + joml (обе модели)
+  run_gui_icon_center_selftest.bat     # javac+java foreground, hard-timeout, UTF-8 лог + .result в logs/ (14 проверок)
+  run_client_itemmodel_probe.bat|.ps1  # bounded runClient: ждёт WHITEFOG_ITEM_MODEL_SELFTEST, свой PID-три, timeout 150 c
+  README.md                            # что доказывает и что НЕ доказывает (matrix-proof, НЕ пиксельный рендер)
 ```
 `common` не содержит ссылок на `net.minecraft.client.*` — проверено по скомпилированным классам
 `build/classes/java/main` (см. «Build & run»).
@@ -536,6 +564,297 @@ Fabric API: `...\modules-2\files-2.1\net.fabricmc.fabric-api\fabric-api\0.161.0+
 - `WhiteFog.java` / `WhiteFogServer.java` — регистрация `BlockBreakRules.register()` (без новых payload-типов).
 - Проверки: `gradlew.bat build --no-daemon --console=plain` + `scripts\server_smoke.bat`, затем интерактивная приёмка.
 
+## Этап 1.4 (полностью)
+
+По новой обязательной спецификации ROADMAP_STEPS.md строк 22–31 (прежнее переиспользование
+`minecraft:stone_slab` отменено). Всё серверно-авторитетно, без новых payload-типов
+(меню открывается ванильным `Player#openMenu`; recovery — чистый server tick).
+
+- **Контент (`content/WhiteFogContent.java`).** `white_fog:flat_stone` (BlockItem stack 16) и
+  `white_fog:small_stone` (BlockItem stack 64) через `Registry.register(BuiltInRegistries.BLOCK/ITEM,
+  ResourceKey, …)`; 26.2 обязателен `Properties#setId(ResourceKey)`. `BlockEntityType` — только у
+  станции (`new BlockEntityType<>(FlatStoneBlockEntity::new, Set.of(FLAT_STONE))`). Меню —
+  `new MenuType<>(FlatStoneMenu::new, FeatureFlags.VANILLA_SET)` (доступ к package-private
+  конструктору даёт classtweaker `fabric-menu-api-v1`, как и к `MenuScreens.register`).
+- **`FlatStoneBlock`.** `BaseEntityBlock`, `MapCodec CODEC = simpleCodec(...)`, property
+  `BlockStateProperties.HORIZONTAL_FACING` (поворот меняет ориентацию сколов, не рецепт);
+  единая коробка `Block.box(1,0,1,15,4,15)` и как shape, и как collision. `canSurvive` требует
+  полную твёрдую опору снизу; `neighborChanged` при её потере делает
+  `level.destroyBlock(pos, true, null, 512)` — обычный ОДИН block loot. `pushReaction(PushReaction.BLOCK)`
+  (`WhiteFogContent`) — поршень не перемещает станцию (в т.ч. с job). Содержимое escrow/output
+  выдаётся в `FlatStoneBlockEntity#preRemoveSideEffects` (штатный 26.2-хук удаления BE, как у
+  контейнеров; block item там НЕ дублируется — его даёт loot table).
+- **`SmallStoneBlock`.** `instabreak`, `noCollision` (collision пустая через `getCollisionShape →
+  Shapes.empty()`), selection `Block.box(5,0,5,11,3,11)`, `pushReaction(DESTROY)`. Детерминированный
+  вариант `VARIANT` через `variantFor(pos) = ((x ^ z) & 1) == 0` (hook для worldgen 2.1); loot не
+  зависит от варианта. Отдельного decor entity ID нет, BlockEntity нет.
+- **`FlatStoneBlockEntity`.** `schemaVersion` (`WhiteFogConfig.FLAT_STONE_SCHEMA_VERSION`), `revision`,
+  `jobOwner` (UUID), `escrow`/`output` (`ItemStack`), `jobProgressTicks`/`jobRequiredTicks`, `Mode`
+  (`CRAFT`/`FORGE`). NBT — через MC 26.2 `ValueOutput#store/put*` и `ValueInput#read/get*` (не legacy
+  `CompoundTag`); `ItemStack.OPTIONAL_CODEC`. `isBusy() = hasActiveJob() || hasContents()`. Пустая
+  станция не хранит данные игрока. Job (рецепты 3.5) — задел: `setActiveJob/clearJob/setEscrow/setOutput`.
+- **Установка (`content/item/GroundPlacedBlockItem`).** Только `getClickedFace() == UP`, опора —
+  `isFaceSturdy(..., UP)`, целевая позиция `support.above()` должна быть `canBeReplaced()` и не
+  `liquid()`, `mayUseItemAt`; проверки ДО `super.useOn`, поэтому неподходящее место предмет НЕ
+  списывает. `creative` не списывает (ванильный путь).
+- **Interaction (`station/FlatStoneInteractions`).** Fabric `BlockEvents.USE_WITHOUT_ITEM` (пустая
+  рука) и `USE_ITEM_ON`; решение принимается одинаково на клиенте/сервере, мутирует только сервер,
+  возврат `SUCCESS` подавляет клиентское предсказание. Правила: ПКМ по `flat_stone` (без Shift) —
+  открыть меню; Shift+ПКМ пустой рукой — `FlatStoneRemoval.remove` (ровно один interaction);
+  ПКМ по `small_stone` любой рукой — подбор, но обрабатывается только `InteractionHand.MAIN_HAND`;
+  Shift+ПКМ `minecraft:cobblestone` по твёрдой земле — `RecoveryService`.
+- **Снятие (`station/FlatStoneRemoval`).** Проверяет `BlockState` и `isBusy()`; занятая — точный
+  текст `WhiteFogConfig.MESSAGE_STATION_BUSY` в action bar, без выдачи. Иначе `removeBlockEntity` +
+  `removeBlock(pos, false)` (block loot ПОДАВЛЕН) + `StationDropHelper.giveOne` (ровно 1 предмет).
+- **Подбор (`station/SmallStonePickup`).** Cooldown `SMALL_STONE_PICKUP_COOLDOWN_TICKS = 2` на игрока;
+  `removeBlock(pos, false)` + `giveOne`; предмет в руке не расходуется. ЛКМ даёт ровно 1 через
+  ванильный block loot (блок `UNCLASSIFIED` для правил 1.3).
+- **Однократность и pending (`station/StationDropHelper`).** `Inventory#add` мутирует стек, оставляя
+  остаток; остаток — `new ItemEntity(level, center, …)` + `setPickUpDelay(10)` + `addFreshEntity`
+  (в центре бывшего блока). Итого ровно один предмет; pending переживает unload/load.
+- **Recovery (`station/RecoveryService`).** World interaction (НЕ крафт): `canStart` (твёрдая опора,
+  заменяемая цель без жидкости, ≥2 cobblestone) проверяется на клиенте и сервере; задача хранится в
+  сервисной `Map<UUID, Job>` с `startTick`. Отмена — по движению (`RECOVERY_CANCEL_MOVE_SQR`),
+  урону (`getHealth() < startHealth`), смерти, смене измерения. Входы списываются ТОЛЬКО при
+  завершении (атомарность), поэтому отмена не требует возврата. `tickAll` вызывается из единого
+  `END_SERVER_TICK` (`WhiteFogServer`); `clear` — на disconnect/respawn/смену измерения.
+- **Язык/ресурсы.** `assets/white_fog/{blockstates,models/block,items,textures/block,lang}`,
+  `data/white_fog/loot_table/blocks/{flat_stone,small_stone}.json`. Item-модели — в новом формате
+  26.2 `assets/<ns>/items/<name>.json` (`{"model":{"type":"minecraft:model","model":…}}`); loot —
+  `data/<ns>/loot_table/blocks/*.json` БЕЗ `survives_explosion` (взрыв всегда даёт 1 block item).
+  Текстуры сгенерированы (16×16, `flat_stone` side/top, `small_stone`).
+- **Hook points (без реализации).** worldgen 2.1 и рецепты инструментов 3.5 — только TODO-комментарии
+  в `WhiteFogContent` и `SmallStoneBlock#variantFor`; фиктивной генерации/рецептов нет.
+
+### API evidence (javap по реальным 26.2 deobf / Fabric API jar)
+- `BlockBehaviour`: `protected useItemOn(ItemStack, BlockState, Level, BlockPos, Player, InteractionHand,
+  BlockHitResult)`, `protected useWithoutItem(BlockState, Level, BlockPos, Player, BlockHitResult)`,
+  `simpleCodec(Function)`, `canSurvive`, `neighborChanged(BlockState, Level, BlockPos, Block, Orientation, boolean)`.
+  В 26.2 появился `net.minecraft.world.level.redstone.Orientation` в `neighborChanged`.
+- `BlockBehaviour$BlockStateBase`: `canBeReplaced()`, `liquid()`, `isFaceSturdy(BlockGetter, BlockPos,
+  Direction)`, `updateShape(..., ScheduledTickAccess, ...)`.
+- `BlockItem#useOn(UseOnContext)`, `BlockItem#place(BlockPlaceContext)`; `UseOnContext#getClickedFace/
+  getClickedPos/getItemInHand/getHorizontalDirection`; `BlockPlaceContext#getClickedPos()` (это ЦЕЛЕВАЯ
+  позиция `relativePos`).
+- `BlockEntity` (26.2): `protected saveAdditional(ValueOutput)`/`loadAdditional(ValueInput)`,
+  `public preRemoveSideEffects(BlockPos, BlockState)` (содержимое контейнеров выдаётся здесь;
+  `AbstractFurnaceBlockEntity` вызывает `super` + `BaseContainerBlockEntity`). `ValueOutput#store/
+  storeNullable/put*`, `ValueInput#read/getIntOr/getStringOr/...`; `ItemStack.OPTIONAL_CODEC`.
+  `LevelChunk#removeBlockEntity` вызывает `BlockEntity.preRemoveSideEffects` (javap).
+- Регистрация: `Registry.register(Registry, ResourceKey, T)`; `BlockBehaviour.Properties#setId`;
+  `Item.Properties#setId`; `BuiltInRegistries.{BLOCK,ITEM,BLOCK_ENTITY_TYPE,MENU}`;
+  `new MenuType<>(MenuSupplier, FeatureFlagSet)` + `FeatureFlags.VANILLA_SET` (classtweaker
+  `fabric-menu-api-v1` делает конструктор и `MenuScreens.register` доступными).
+- Fabric: `BlockEvents.USE_ITEM_ON`/`USE_WITHOUT_ITEM` инъектятся в `BlockStateBase#useItemOn/
+  useWithoutItem` через `setReturnValue` (javap `BlockBehaviourBlockStateBaseMixin`) — возврат
+  не-null гасит ванильное взаимодействие на обеих сторонах; `null` = pass.
+- Мир: `Level#removeBlock`, `destroyBlock(BlockPos, boolean, Entity, int)`, `removeBlockEntity`,
+  `setBlock(BlockPos, BlockState, int)`, `Block.UPDATE_ALL`; `Inventory#add(ItemStack)` (мутирует стек
+  до остатка), `getContainerSize/getItem`; `ServerLevel#addFreshEntity`; `ItemEntity#setPickUpDelay(int)`.
+- Client: `MenuScreens.register(MenuType, ScreenConstructor)`; `AbstractContainerScreen` в 26.2 рисует
+  через `extractRenderState(GuiGraphicsExtractor, int, int, float)` (fill/outline/text/centeredText).
+
+### References (прочитано, адаптировано — не скопировано)
+- `Tschipp/CarryOn` (`26.2`) — `Common/.../carry/PickupHandler.java`: снятие блока/станции без дублей
+  (`removeBlockEntity` + `removeBlock`), сохранение BlockEntity, проверка дистанции.
+- `Patbox/polymer` (`dev/26.2`) — серверный тайминг и `ClientboundBlockUpdatePacket` (переиспользовано
+  как образец серверной авторитетности; меню-часть не копировалась).
+- `FabricMC/fabric-api` — `fabric-events-interaction-v0` (`BlockEvents` USE_ITEM_ON/USE_WITHOUT_ITEM)
+  и `fabric-menu-api-v1` (`ExtendedMenuType`, classtweaker на `MenuType`/`MenuScreens`).
+- `AbstractFurnaceBlockEntity` / `BaseContainerBlockEntity` (vanilla) — `preRemoveSideEffects` как
+  штатная точка выдачи содержимого block entity при удалении.
+- Формат item-моделей 26.2 — vanilla `assets/minecraft/items/stone_slab.json`; loot —
+  `data/minecraft/loot_table/blocks/{stone_slab,torch}.json`.
+
+### Проверки (эта сессия, финальный прогон)
+- `scripts\build.bat` → `BUILD SUCCESSFUL`, `status=SUCCESS` (`logs/build_20261007_233317.txt`); в jar —
+  `com/whitefog/content/**`, `com/whitefog/station/**`, `com/whitefog/client/screen/FlatStoneScreen.class`,
+  assets/blockstates/models/items/textures/lang, `data/white_fog/loot_table/blocks/*.json`.
+- `scripts\server_smoke.bat` → `status=SUCCESS` (`logs/server_smoke_20261007_233345.txt`); строки
+  `White Fog: content registered … stage 1.4`, `flat-stone/small-stone interactions registered (stage 1.4)`,
+  `flat-stone recovery registered (stage 1.4, … 100 ticks)`; dedicated server стартует без клиентских ресурсов.
+- `scripts\client_smoke.bat` → `status=SUCCESS` (`logs/client_smoke_20261007_233417.txt`); строки
+  `flat-stone screen registered (stage 1.4)` и `client initializer ready (stage 1.3 regression fix),
+  MultiPlayerGameModeMixin applied=true`.
+- Ресурс-проверка клиента (bounded, temp-скрипт, ждём 45 c после `Reloading ResourceManager`) —
+  без `Unable to load model`/`Failed to load`/texture ошибок (`logs/client_res_check_20261007_232709.txt`).
+- `tests\station\run_station_selftest.bat` → `passed=270 failed=0`, `SELFTEST status=SUCCESS`
+  (`logs/station_selftest_20261007_233343.txt`). Logic-only, НЕ runtime-proof.
+- `tests\break_timer\run_break_timer_selftest.bat` → `passed=118 failed=0` (`logs/break_timer_selftest_20261007_233344.txt`) — не сломан.
+- Разделение клиент/сервер: `build/classes/java/main` без `net/minecraft/client.*` (проверено).
+
+### Известные ограничения этапа 1.4
+1. Интерактивная приёмка НЕ проводилась (см. TODO): реальные модели/текстуры, открытие GUI,
+   снятие/установка, recovery, piston/explosion, два игрока, save/load job — за архитектором.
+2. Меню пустое и без слотов; `stillValid` возвращает `true` (позиция блока через обычный
+   `MenuType` не передаётся). Реальная привязка/job-UI — этап 3.5.
+3. Вкладка рецептов — визуальная заглушка (`FlatStoneScreen`), рецептов нет (крафт 1.2 удалён,
+   инструменты 3.5). `FlatStoneMenu` намеренно `AbstractContainerMenu`, а не `RecipeBookMenu`.
+4. `FlatStoneBlock` намеренно `UNCLASSIFIED` для правил этапа 1.3 (ломается обычным block loot);
+   занятую станцию от ЛКМ защищает только UI-протокол 1.4 (job/escrow/output пусты до 3.5).
+5. `affectNeighborsAfterRemoval`/hopper-интеграция не задействованы: станция не `Container`;
+   hopper/меню транспортировка содержимого появится вместе с job.
+6. worldgen 2.1 и рецепты 3.5 не реализованы — только TODO/hook (`SmallStoneBlock#variantFor`).
+
+## Этап 1.4 — hotfix видимости предмета `small_stone` (полностью)
+
+Запрошен явно. Симптом: `/give @s white_fog:small_stone` не давал ошибки и чат писал
+«выдано», но предмет «не появлялся». `/give @s white_fog:flat_stone` работал нормально.
+
+### Root cause (доказан runtime-наблюдением)
+Это **НЕ** баг регистрации. Серверная выдача реально стакивалась: в
+`run/saves/New World/players/data/<uuid>.dat` присутствуют теги `small_stone` и `flat_stone`
+(инвентарь сохранился). Регистрация корректна (`inRegistry=true`, `descId=item.white_fog.small_stone`),
+модель пеклась (не `MissingItemModel`). Причина — **размер/масштаб иконки**: `items/small_stone.json`
+ссылалась напрямую на block-модель `white_fog:block/small_stone_0`, у которой габаритная коробка
+`x/z 5..11 (6px), y 0..3` и НЕТ `display`. В слоте GUI такая модель «как есть» занимает ~6/16 px
+и рендерится крошечной тёмной точкой; в перегруженном слоте её легко принять за «предмета нет».
+`flat_stone` был виден потому, что его коробка — почти полная плита (14px).
+
+### Фикс (минимальный, resources-only; мировая geometry не тронута)
+- **Новый файл `src/main/resources/assets/white_fog/models/item/small_stone.json`** — item-модель:
+  `parent = white_fog:block/small_stone_0` + явный `display` для всех контекстов, где ключевой
+  `gui.scale = 1.25` (как vanilla для мелких блоков использует item-модель с display). Ground/fixed/
+  thirdperson/firstperson/head/on_shelf заданы явно, чтобы масштаб не зависел от merge с parent.
+- **`src/main/resources/assets/white_fog/items/small_stone.json`** — ссылка `model` переключена
+  `white_fog:block/small_stone_0` → `white_fog:item/small_stone`.
+- **`src/main/java/com/whitefog/content/WhiteFogContent.java`**, `SmallStoneBlock`, блокстейт, loot,
+  текстуры, world geometry, registration — НЕ менялись. `-1 quads`/`MissingItemModel` не при чём.
+
+### Проверка (runtime, dev-client)
+- **Dev-only self-check `client/dev/ItemModelSelfCheck.java`** (регистрируется из `WhiteFogClient`
+  только при `isDevelopmentEnvironment()`): по тику ждёт завершения первичного resource reload
+  (иначе `ModelManager#getItemModel` бросает NPE), затем читает `ModelManager#getItemModel` и
+  приватное поле `quads` (`QuadCollection#getAll().size()`), и пишет строку
+  `WHITEFOG_ITEM_MODEL_SELFTEST flat[key=… inRegistry=… model=… quads=…] small[…] status=…`.
+  Фактический вывод (title screen): `flat[…] model=CuboidItemModelWrapper quads=24` /
+  `small[…] model=CuboidItemModelWrapper quads=12` — обе запечены, не missing.
+- **In-world render state** (временный зонд, `quickPlay` в `runClient`, `ItemModelResolver#updateForTopItem`):
+  `small_stone` `empty=false`, bbox линейно ≈ 0.47 (против ≈ 0.26 до фикса, ≈ 1.8×; сопоставимо с
+  `flat_stone` ≈ 0.42), `oversized=false`; `flat_stone` `empty=false`.
+- **Скриншот инвентаря** (`run/screenshots`): до фикса `small_stone` — крошечная тёмная точка,
+  после — различимая каменная горка в слоте/хотбаре, сопоставимая по размеру с `flat_stone`.
+- `api evidence`: `Minecraft#getModelManager()/getItemModelResolver()` (javap, clientonly 26.2),
+  `ModelManager#getItemModel(Identifier)`, `ItemModelResolver#updateForTopItem(...)`, `Items.STONE`
+  как контроль (тот же `CuboidItemModelWrapper`).
+- **References:** vanilla 26.2 `assets/minecraft/items/{stone_slab,flower_pot}.json` — item-модель
+  указывает на `minecraft:item/*`; `TwelveIterations/CookingForBlockheads` и
+  `AppliedEnergistics/Applied-Energistics-2` — реальное использование `updateForTopItem` (portal-api 26.2).
+
+### Временный диагностический инструмент (убран)
+Для in-world проверки временно добавлялся `runs { client { programArgs '--quickPlaySingleplayer', 'New World' } }`
+в `build.gradle` и код зонда со `Screenshot`/`InventoryScreen`/`sendCommand` в self-check. После снятия
+доказательств оба удалены; в репозитории остались только фикс и компактный self-check.
+
+## Этап 1.4 — hotfix центрирования GUI-иконки `small_stone` (полностью)
+
+Запрошен явно: после фикса видимости иконка в инвентаре «уехала вниз, не по центру». Причина — не размер,
+а **положение bbox**: у `white_fog:block/small_stone_0` элементы `x/z 5..11, y 0..3`, поэтому центр bbox
+в блочном пространстве `(8, 1.5, 8)` = `(0.5, 0.09375, 0.5)` (не `(0.5,0.5,0.5)`, как у полного блока).
+Стандартный `gui`-transform (`rotation [30,225,0]`, `scale 1.25`) вращает/масштабирует это смещение и
+проецирует bbox-центр на `[0, −7.036, −4.062]` px от центра слота — иконка сидит ниже центра.
+
+### Причина (доказана реальным движком, не «на глаз»)
+`ItemTransform.apply` (26.2 clientonly-deobf, javap): матрица `T(translation) · R(rotationXYZ) · S(scale) · T(-0.5)`;
+`ItemTransform$Deserializer`: `translation = json·0.0625`, clamp `[-5,5]`; для `ItemDisplayContext.GUI`
+`leftHand()==false` (javap: `true` только для `*_LEFT_HAND`). При `translation=[0,0,0]` bbox-центр
+проецируется в `(0, −0.4398, −0.2539)` (единицы модели; 1.0 = 16 px) = `[0, −7.04, −4.06]` px.
+
+### Фикс (минимальный, resources-only)
+`src/main/resources/assets/white_fog/models/item/small_stone.json` — изменён **только** `gui.translation`:
+`[0, 0, 0]` → `[0.0, 7.036, 4.062]`. `gui.rotation [30,225,0]` и `gui.scale [1.25,1.25,1.25]` НЕ менялись;
+остальные контексты `display` (ground/fixed/head/on_shelf/thirdperson/firstperson) не тронуты; регистрация,
+block-модель и мировая geometry — не тронуты. Значение — точное `-f(0)`, вычисленное реальным движком:
+bbox-центр после GUI-трансформа ровно `(0,0,0)`, размер (extent `0.66/0.53/0.69`) сохранён.
+
+### Проверки (эта сессия)
+- **Sandbox `tests\item_gui_center`** (вызывает реальный `ItemTransform.apply`/`PoseStack` из
+  `minecraft-clientonly-deobf 26.2` + `joml 1.10.8`, не «своя математика»): `run_gui_icon_center_selftest.bat`.
+  «До» (translation `[0,0,0]`) — `SELFTEST status=FAILURE`, offset `(0,−7.036,−4.062)` px
+  (`logs/item_gui_center_selftest_20261008_002656.txt`); «после» — `passed=6 failed=0`,
+  `required gui.translation = [0.000, 7.036, 4.062]`, `SELFTEST status=SUCCESS`
+  (`logs/item_gui_center_selftest_20261008_002717.txt`). Это matrix-proof реальными классами,
+  **НЕ** пиксельный рендер.
+- **Bounded runtime probe** `tests\item_gui_center\run_client_itemmodel_probe.bat` (свой PID-три,
+  timeout 150 c): `status=SUCCESS`, строка
+  `WHITEFOG_ITEM_MODEL_SELFTEST flat[... quads=24] small[... quads=12] status=SUCCESS`
+  (`logs/itemmodel_probe_20261008_002905.txt`) — изменённый item-модель JSON грузится/печётся клиентом
+  без model-ошибок.
+- **Сборка** `scripts\build.bat` → `BUILD SUCCESSFUL`, `status=SUCCESS`
+  (`logs/build_20261008_002731.txt`); в `build/libs/white_fog-0.1.0.jar` ресурс
+  `assets/white_fog/models/item/small_stone.json` содержит `translation: [0.0, 7.036, 4.062]`.
+- **References:** vanilla 26.2 `assets/minecraft/models/block/{heavy_core,dried_ghast,template_shelf_inventory,
+  template_fence_gate}.json` — примеры ненулевого `gui.translation` у частичных блоков; `ItemTransform.apply`,
+  `ItemTransform$Deserializer`, `ItemDisplayContext.GUI.leftHand()`, `GuiItemAtlas#drawToSlot`
+  (ortho, `scale(slotTextureSize, -slotTextureSize, slotTextureSize)`) — прочитано/проверено по deobf jar.
+
+### Известные ограничения
+1. Пиксельная визуальная приёмка (иконка реально по центру в слоте) — за архитектором: sandbox доказывает
+   матрицу реальным движком, runtime probe — загрузку/пек модели, но не пиксели.
+2. Регистрация, block-модели/мировая geometry, остальные контексты `display` и вся логика этапов 1.1–1.4
+   не менялись.
+
+## Этап 1.4 — hotfix центрирования GUI-иконки `flat_stone` (полностью)
+
+Запрошен явно: после фикса `small_stone` иконка `flat_stone` в инвентаре «немного смещена вниз».
+Причина — та же, что у `small_stone`: **положение bbox**, а не размер. До фикса `items/flat_stone.json`
+ссылалась **напрямую** на block-модель `white_fog:block/flat_stone`; её элементы `x/z 1..15`, `y 0..4`,
+поэтому центр bbox в блочном пространстве `(8, 2, 8)` = `(0.5, 0.125, 0.5)` (не `(0.5,0.5,0.5)`).
+Наследуемый от vanilla `minecraft:block/block` `gui`-transform (`rotation [30,225,0]`, `translation [0,0,0]`,
+`scale [0.625,0.625,0.625]`, выгружен из `minecraft-client.jar` → `assets/minecraft/models/block/block.json`)
+проецировал bbox-центр на `[0, −3.248, −1.875]` px от центра слота — иконка сидела ниже центра.
+
+### Merge-семантика `display` (доказана байткодом 26.2, важно для минимальности фикса)
+`ResolvedModel.findTopTransform(ResolvedModel, ItemDisplayContext)` (javap, clientonly-deobf 26.2): идёт по
+цепочке `parent`; для контекста берётся **весь** `ItemTransform` первого (ближайшего) модели, где он задан
+и не равен `ItemTransform.NO_TRANSFORM`, иначе — у родителя. То есть замена **по контексту целиком**, а не
+посимвольная. Поэтому предметной модели достаточно объявить **только** `gui`; `ground/fixed/head/on_shelf/
+thirdperson/firstperson` наследуются из `white_fog:block/flat_stone` → `minecraft:block/block` без изменений
+(в отличие от `small_stone`, где parent `white_fog:block/small_stone_0` тоже родит `block/block`, но все
+контексты были заданы явно при первом фиксе).
+
+### Фикс (минимальный, resources-only; мировая geometry не тронута)
+- **Новый файл `src/main/resources/assets/white_fog/models/item/flat_stone.json`** — предметная модель:
+  `parent = white_fog:block/flat_stone`, `display.gui` = `rotation [30,225,0]`, `translation [0.0, 3.248, 1.875]`,
+  `scale [0.625,0.625,0.625]` (rotation/scale совпадают с прежним наследуемым — размер предмета НЕ менялся).
+- **`src/main/resources/assets/white_fog/items/flat_stone.json`** — ссылка `model` переключена
+  `white_fog:block/flat_stone` → `white_fog:item/flat_stone`.
+- Block-модель `models/block/flat_stone.json`, blockstate, `WhiteFogContent`, loot, текстуры, размер предмета,
+  `small_stone` и его proof — **НЕ менялись**. Translation — точное `-f(0)` (движок), а не «на глаз».
+
+### Значения до/после (единицы JSON, как в файле; 1.0 = 1 px)
+| | gui.translation | проекция bbox-центра |
+|---|---|---|
+| до | `[0, 0, 0]` (унаследовано) | `[0, −3.248, −1.875]` px |
+| после | `[0.0, 3.248, 1.875]` | `(0,0,0)` (центр слота) |
+
+`required gui.translation (px, exact) = [0.000000, 3.247596, 1.875000]`.
+
+### Проверки (эта сессия)
+- **Sandbox `tests\item_gui_center` расширен** (`GuiIconCenterSelfTest` теперь прогоняет обе модели:
+  `small_stone` + `flat_stone`, реальные `ItemTransform.apply`/`PoseStack` 26.2 + joml; добавлена проверка
+  «gui scale не менялся» — `1.25`/`0.625`). «До» (translation `[0,0,0]`) — `passed=13 failed=1`,
+  `flat_stone` offset `[0,−3.248,−1.875]` px, `small_stone` уже зелёный
+  (`logs/item_gui_center_selftest_20261008_003712.txt`); «после» — `passed=14 failed=0`,
+  `SELFTEST status=SUCCESS` (`logs/item_gui_center_selftest_20261008_003726.txt`). Matrix-proof реальными
+  классами, **НЕ** пиксельный рендер.
+- **Bounded runtime probe** `tests\item_gui_center\run_client_itemmodel_probe.bat` (свой PID-три, timeout 150 c) —
+  `status=SUCCESS`, `WHITEFOG_ITEM_MODEL_SELFTEST flat[... quads=24] small[... quads=12] status=SUCCESS`
+  (`logs/itemmodel_probe_20261008_003754.txt`): изменённые item-модели грузятся/пекутся без model-ошибок.
+- **Сборка** `scripts\build.bat` (`gradlew build --no-daemon --console=plain`) → `BUILD SUCCESSFUL`
+  (`logs/build_20261008_003736.txt`); в `build/libs/white_fog-0.1.0.jar` есть
+  `assets/white_fog/models/item/flat_stone.json` с `translation: [0.0, 3.248, 1.875]` и
+  `items/flat_stone.json` → `white_fog:item/flat_stone`.
+- **References:** vanilla 26.2 `assets/minecraft/models/block/block.json` (эталон `gui`-transform блочного
+  предмета: `rotation [30,225,0]`, `scale 0.625`); `ResolvedModel.findTopTransform` (merge по контексту);
+  `ItemTransform.apply`/`ItemTransform$Deserializer`/`ItemDisplayContext.GUI.leftHand()` — прочитано по deobf jar.
+
+### Известные ограничения
+1. Пиксельная визуальная приёмка (иконка `flat_stone` реально по центру слота) — за архитектором: sandbox
+   доказывает матрицу реальным движком, runtime probe — загрузку/пек модели, но не пиксели.
+2. Block-модель/мировая geometry, blockstate, registration, loot, размер предмета, `small_stone` и его proof
+   не менялись; правка исключительно в `display.gui` новой предметной модели `flat_stone`.
+
 ## TODO
 - **Интерактивная приёмка этапов 1.1/1.2/1.3 — ПОДТВЕРЖДЕНА пользователем** (версия работает «идеально»,
   версия `0.1.0` закреплена). Явно НЕ заявляются как проверенные (в подтверждение не входили и отдельно не
@@ -571,6 +890,23 @@ Fabric API: `...\modules-2\files-2.1\net.fabricmc.fabric-api\fabric-api\0.161.0+
   удержание НЕ даёт свинга, подсказка «Слишком крепко — нужен инструмент» показана; `UNCLASSIFIED`
   ломается ванильно. Серверные трещины (`ClientboundBlockDestructionPacket`) видны во время серверного
   таймера. Headless smoke доказывает только init + применение миксина.
+- **Этап 1.4 — применён в `src/`** (новая обязательная спецификация ROADMAP 22–31). Интерактивная
+  приёмка НЕ проводилась. Проверить вручную: установку `flat_stone`/`small_stone` только по верхней
+  грани полной твёрдой опоры (в лаве/воде и в воздухе — отказ без расхода); 100 циклов установить/снять
+  (количество постоянно); Shift+ПКМ пустой рукой снимает пустую станцию за один interaction; занятая
+  (с job/escrow/output) отвечает «Сначала забери материалы и результат»; ПКМ по камушку (обе руки, но
+  обрабатывается main-hand) и ЛКМ дают ровно одну камушку, предмет в руке не расходуется; recovery
+  «2 cobblestone → 1 flat_stone за 100 тиков» Shift+ПКМ по твёрдой земле, движение/урон отменяют без
+  потерь; удаление опоры/взрыв дают один block item, piston не двигает станцию; vanilla slab GUI не
+  открывает; dedicated server стартует без клиентских ресурсов; save/load станции с job сохраняет
+  схему. Помнить: job/escrow/output — только схема до 3.5, поэтому содержимого пока нет.
+  **Иконка `small_stone` исправлена hotfix'ами (см. разделы «Этап 1.4 — hotfix видимости предмета
+  `small_stone`» и «Этап 1.4 — hotfix центрирования GUI-иконки `small_stone`»): при приёмке убедиться,
+  что `/give @s white_fog:small_stone` показывает различимую каменную горку, сопоставимую по размеру с
+  `flat_stone` (раньше была крошечная тёмная точка) и расположенную ПО ЦЕНТРУ слота (раньше уезжала вниз).**
+  **Иконка `flat_stone` отцентрирована hotfix'ом (см. раздел «Этап 1.4 — hotfix центрирования GUI-иконки
+  `flat_stone`»): при приёмке убедиться, что `/give @s white_fog:flat_stone` в инвентаре/хотбаре стоит
+  ПО ЦЕНТРУ слота (раньше была смещена вниз на ≈3.25 px) при неизменном размере (`gui.scale 0.625`).**
 - Этап 1.x+: фактический расход/восстановление (`fatigue/calories/water/condition`), термоощущение,
   мокрота одежды, дизентерия, сон/работа как механики; реальный HUD по §10 AGENTS.md.
 - Возможные C2S-пакеты действий (регистрировать типы в common init до ресиверов).
@@ -619,6 +955,47 @@ Sandbox self-теста этапа 1.3 (чистая логика, НЕ runtime;
 пишет UTF-8 лог + `.result` в `logs\`; `exit 124` = TIMEOUT):
 ```bat
 tests\break_timer\run_break_timer_selftest.bat
+```
+Sandbox self-теста этапа 1.4 (станция/камушек; чистая логика, НЕ runtime; foreground, внутренний
+watchdog 20 c, UTF-8 лог + `.result` в `logs\`; `exit 124` = TIMEOUT, 19 сценариев, 270 проверок):
+```bat
+tests\station\run_station_selftest.bat
+```
+Sandbox центрирования GUI-иконок `small_stone` И `flat_stone` (этап 1.4 hotfix; вызывает **реальный**
+`ItemTransform.apply`/`PoseStack` 26.2 + joml — matrix-proof, НЕ пиксельный рендер; foreground, внутренний
+watchdog 20 c, 14 проверок, UTF-8 лог + `.result` в `logs\`; до фикса `gui.translation=[0,0,0]` даёт
+`status=FAILURE`):
+```bat
+tests\item_gui_center\run_gui_icon_center_selftest.bat
+:: exit 0 только при status=SUCCESS
+```
+Проверка результата центрирования в логе sandbox (ожидаются оба требуемых translation и SUCCESS):
+```powershell
+Select-String -Path logs\item_gui_center_selftest_*.txt -Pattern 'required gui.translation|SELFTEST status' | Select-Object -Last 6
+# ожидается: small_stone ... [0.000, 7.036, 4.062] / flat_stone ... [0.000, 3.248, 1.875] / SELFTEST status=SUCCESS
+```
+Bounded runtime probe загрузки/пека item-моделей (свой PID-три, timeout 150 c, ждёт `WHITEFOG_ITEM_MODEL_SELFTEST`):
+```bat
+tests\item_gui_center\run_client_itemmodel_probe.bat
+:: exit 0 только при status=SUCCESS
+```
+Проверка инициализации контента/интеракций этапа 1.4 в свежем smoke-логе:
+```powershell
+Select-String -Path logs\server_smoke_*.txt -Pattern 'stage 1.4' | Select-Object -Last 4
+# ожидается: content registered ... stage 1.4 / flat-stone/small-stone interactions registered / recovery registered
+```
+Проверка регистрации клиентского экрана этапа 1.4 в свежем client-smoke-логе:
+```powershell
+Select-String -Path logs\client_smoke_*.txt -Pattern 'flat-stone screen registered' | Select-Object -Last 2
+# ожидается: White Fog: flat-stone screen registered (stage 1.4)
+```
+Проверка bake item-моделей контента (dev-only `WHITEFOG_ITEM_MODEL_SELFTEST`; запускается по
+client tick только в dev и пишет строку после первичного resource reload; в свежем client-smoke-логе
+её может не быть — smoke завершается раньше, поэтому для проверки годится любой dev-лог клиента):
+```powershell
+Select-String -Path logs\*.txt,run\logs\latest.log -Pattern 'WHITEFOG_ITEM_MODEL_SELFTEST' | Select-Object -Last 2
+# ожидается: ... flat[... model=CuboidItemModelWrapper quads=24] small[... model=CuboidItemModelWrapper quads=12] status=SUCCESS
+# FAIL/MissingItemModel/quads=0 => item-модель не запечена (проверить assets/.../items/<name>.json + модель)
 ```
 Проверка результата self-теста крафта в свежем smoke-логе (должны быть строки
 `removed 1120 vanilla crafting recipe(s)`, `Loaded 465 recipes` и
@@ -732,6 +1109,23 @@ Get-ChildItem -Recurse build\classes\java\main -Filter *.class |
   `continueDestroyBlock` только для визуала). Альтернативу «ручной локальный свинг» не выбрали:
   она дублирует логику вызывающего и скрывает свинг от других игроков. `DENY_*` остаётся `false`
   (без свинга), `UNCLASSIFIED` — ваниль.
+- **Этап 1.4 — свои блоки вместо vanilla slab, Fabric-события вместо миксинов.** `flat_stone`/`small_stone`
+  регистрируются как обычный контент (`setId` обязателен); interaction'ы — через `BlockEvents.USE_ITEM_ON`/
+  `USE_WITHOUT_ITEM` (без новых миксинов, hand доступен в USE_ITEM_ON для main-hand-семантики камушка).
+  Меню открывается ванильным `openMenu` (новых payload-типов нет), recovery — чистый server tick.
+- **Этап 1.4 — однократность через серверный поток.** Снятие/подбор: сначала перечитать `BlockState` и
+  `isBusy()`, затем `removeBlockEntity`/`removeBlock(pos,false)` (block loot подавлен) и ровно один предмет
+  (`Inventory#add` с остатком в `ItemEntity`). Второй клик/второй игрок видят air и не дают второго результата.
+  Для обычного разрушения (ЛКМ, взрыв, потеря опоры) используется block loot (`neighborChanged →
+  destroyBlock(pos,true,null,512)`), pickup при этом не вызывается.
+- **Этап 1.4 — содержимое только из escrow/output.** `FlatStoneBlockEntity#preRemoveSideEffects` (штатный
+  26.2-хук, как у контейнеров; javap: `LevelChunk#removeBlockEntity` вызывает его) выдаёт escrow/output и НЕ
+  дублирует block item. `affectNeighborsAfterRemoval` не используется (у печи он лишь обновляет соседей).
+- **Этап 1.4 — recovery атомарен «на завершении».** Входы (2 cobblestone) списываются только при успешном
+  завершении после повторной проверки; движение/урон/смерть/смена измерения просто снимают задачу, поэтому
+  отдельный «возврат» не нужен. `canStart` считается на обеих сторонах (клиентское предсказание совпадает).
+- **Этап 1.4 — piston-guard.** `flat_stone` имеет `PushReaction.BLOCK` — станция (в т.ч. с job) не
+  перемещается поршнем; `small_stone` — `PushReaction.DESTROY` (поршень разрушает, обычный loot один раз).
 
 ### Reference sources (адаптировано, не скопировано)
 - Fabric Docs (официальный пример attachment):
@@ -819,3 +1213,23 @@ action bar); `RecipeMap.create(Iterable<RecipeHolder<?>>)`/`values()`; `RecipeHo
 `ServerboundPlayerActionPacket#getSequence`; `ServerGamePacketListenerImpl#handlePlayerAction` вызывает
 `handleBlockBreakAction(...)` и затем **безусловно** `ackBlockChangesUpTo(seq)` — основание для правила
 «преждевременный STOP не отменяет сессию».
+
+**Этап 1.4 (javap-проверено):** `BlockBehaviour.{useItemOn, useWithoutItem, simpleCodec, canSurvive,
+neighborChanged(…, net.minecraft.world.level.redstone.Orientation, boolean)}`; `BlockBehaviour$BlockStateBase.
+{canBeReplaced, liquid, isFaceSturdy}`; `Block#box`, `getStateForPlacement(BlockPlaceContext)`, `rotate/mirror`;
+`BaseEntityBlock` (абстрактный `codec()`, `newBlockEntity`); `BlockEntity` `saveAdditional(ValueOutput)`/
+`loadAdditional(ValueInput)`/`preRemoveSideEffects(BlockPos, BlockState)` (вызывается `LevelChunk#removeBlockEntity`);
+`ValueOutput.{store, storeNullable, putInt, putLong, putString}` / `ValueInput.{read, getIntOr, getLongOr, getStringOr}`;
+`ItemStack.OPTIONAL_CODEC`; `BlockItem#useOn(UseOnContext)` (public), `BlockItem#place(BlockPlaceContext)` (protected);
+`UseOnContext.{getClickedPos, getClickedFace, getItemInHand, getHorizontalDirection}`; `BlockPlaceContext#getClickedPos()`
+= ЦЕЛЕВАЯ (`relativePos`) позиция; `Item.Properties#setId`, `BlockBehaviour.Properties#setId`, `Features{VANILLA_SET}`;
+`BlockEntityType(BlockEntitySupplier, Set<Block>)`; `MenuType` (package-private ctor, открыт classtweaker'ом
+`fabric-menu-api-v1`), `MenuProvider`=`net.minecraft.world.MenuProvider`, `SimpleMenuProvider(MenuConstructor, Component)`,
+`Player#openMenu(MenuProvider)`, `MenuScreens.register` (classtweaker); `BlockEvents.USE_ITEM_ON/USE_WITHOUT_ITEM`
+(инъекция в `BlockStateBase#useItemOn`/`useWithoutItem`, `setReturnValue` при не-null);
+`Level.{removeBlock, removeBlockEntity, destroyBlock(BlockPos,boolean,Entity,int), setBlock}`; `Block.UPDATE_ALL`;
+`Inventory.{add, getContainerSize, getItem}` (`add` мутирует стек до остатка); `ServerLevel#addFreshEntity`;
+`ItemEntity(Level,double,double,double,ItemStack)` + `setPickUpDelay(int)`; `Entity#getDirection`, `Player#mayUseItemAt`,
+`Level#getLevelData().getGameTime()`. Client: `MenuScreens.register`, `AbstractContainerScreen` ctor
+`(T, Inventory, Component, int, int)`, `extractRenderState(GuiGraphicsExtractor,int,int,float)`,
+`GuiGraphicsExtractor.{fill, outline, text, centeredText}`.

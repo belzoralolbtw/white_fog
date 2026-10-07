@@ -1,0 +1,8 @@
+{
+	"variants": {
+		"facing=north": { "model": "white_fog:block/flat_stone" },
+		"facing=east": { "model": "white_fog:block/flat_stone", "y": 90 },
+		"facing=south": { "model": "white_fog:block/flat_stone", "y": 180 },
+		"facing=west": { "model": "white_fog:block/flat_stone", "y": 270 }
+	}
+}

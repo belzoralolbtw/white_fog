@@ -1,0 +1,33 @@
+{
+	"parent": "minecraft:block/block",
+	"textures": {
+		"particle": "white_fog:block/small_stone",
+		"all": "white_fog:block/small_stone"
+	},
+	"elements": [
+		{
+			"from": [5, 0, 5],
+			"to": [11, 2, 11],
+			"faces": {
+				"down": { "uv": [5, 5, 11, 11], "texture": "#all" },
+				"up": { "uv": [5, 5, 11, 11], "texture": "#all" },
+				"north": { "uv": [5, 0, 11, 2], "texture": "#all" },
+				"south": { "uv": [5, 0, 11, 2], "texture": "#all" },
+				"west": { "uv": [5, 0, 11, 2], "texture": "#all" },
+				"east": { "uv": [5, 0, 11, 2], "texture": "#all" }
+			}
+		},
+		{
+			"from": [6, 2, 6],
+			"to": [10, 3, 10],
+			"faces": {
+				"down": { "uv": [6, 6, 10, 10], "texture": "#all" },
+				"up": { "uv": [6, 6, 10, 10], "texture": "#all" },
+				"north": { "uv": [6, 0, 10, 1], "texture": "#all" },
+				"south": { "uv": [6, 0, 10, 1], "texture": "#all" },
+				"west": { "uv": [6, 0, 10, 1], "texture": "#all" },
+				"east": { "uv": [6, 0, 10, 1], "texture": "#all" }
+			}
+		}
+	]
+}

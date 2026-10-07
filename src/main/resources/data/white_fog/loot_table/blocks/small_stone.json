@@ -1,0 +1,15 @@
+{
+	"type": "minecraft:block",
+	"pools": [
+		{
+			"rolls": 1.0,
+			"entries": [
+				{
+					"type": "minecraft:item",
+					"name": "white_fog:small_stone"
+				}
+			]
+		}
+	],
+	"random_sequence": "white_fog:blocks/small_stone"
+}
