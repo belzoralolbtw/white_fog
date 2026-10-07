@@ -1,0 +1,35 @@
+{
+	"schemaVersion": 1,
+	"id": "white_fog",
+	"version": "${version}",
+	"name": "White Fog",
+	"description": "Survival foundation: persistent, server-authoritative player survival state with client sync.",
+	"authors": [
+		"White Fog Team"
+	],
+	"contact": {},
+	"license": "CC0-1.0",
+	"icon": "assets/white_fog/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.whitefog.WhiteFog"
+		],
+		"client": [
+			"com.whitefog.client.WhiteFogClient"
+		]
+	},
+	"mixins": [
+		"white_fog.mixins.json",
+		{
+			"config": "white_fog.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}

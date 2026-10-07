@@ -1,0 +1,17 @@
+{
+	"required": true,
+	"package": "com.whitefog.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"mixins": [
+		"AbstractContainerMenuMixin",
+		"RecipeManagerMixin",
+		"ServerGamePacketListenerImplMixin",
+		"ServerPlayerGameModeMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}
