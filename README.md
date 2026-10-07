@@ -49,6 +49,20 @@ gradlew.bat runClient --no-daemon --console=plain
   own rules, filled/hot stations are refused. Includes the client-prediction
   **hotfix**, **regression fix** and **swing fix** (no false local progress,
   local refusal message, vanilla hit animation on allowed blocks).
+- **Stage 1.4** — flat-stone station and small stones. Adds the blocks
+  `white_fog:flat_stone` (a portable station backed by a `BlockEntity` storing
+  a schema version, job owner, escrow, progress, output, mode and revision) and
+  `white_fog:small_stone` (a plain stackable block). Both can only be placed on
+  the top face of a full solid support (liquids and denied rights are
+  rejected). Ordinary right-click opens an empty `FlatStoneMenu` /
+  `FlatStoneScreen`; Shift + right-click with an empty main hand removes an
+  idle station in one interaction (a busy station is refused with a message
+  asking for its materials and result first); a small stone is picked up with
+  either hand (main-hand only) and also drops as normal block loot on left
+  click; and the backup world interaction "2 cobblestone → 1 flat_stone over
+  100 ticks" is available. Includes the GUI icon **hotfixes**: separate item
+  models with corrected `display.gui` scale/translation so `small_stone` and
+  `flat_stone` render centered in inventory slots.
 
 ## Not yet implemented
 
@@ -56,11 +70,21 @@ gradlew.bat runClient --no-daemon --console=plain
   `white_fog:steel_pickaxe` are **not registered yet** (planned for stage 6.4).
   Until then mining hard blocks and hard stations with a mod pickaxe is
   unavailable; vanilla tools are refused for those categories.
+- **Natural world generation (stage 2.1)** is not implemented yet, so
+  `flat_stone` and `small_stone` do not appear in the world naturally.
+- **Station job recipes (stage 3.5)** are not implemented yet: the station menu
+  is empty apart from a recipe-tab placeholder, and no tool recipes exist.
 
 ## Tests
 
 - `tests\break_timer\run_break_timer_selftest.bat` — logic-only sandbox for the
   break-timer lifecycle (not a runtime proof).
+- `tests\station\run_station_selftest.bat` — logic-only sandbox for the station
+  and small-stone interactions (not a runtime proof).
+- `tests\item_gui_center\run_gui_icon_center_selftest.bat` — matrix-proof of the
+  item GUI icon centering using the real 26.2 `ItemTransform`;
+  `tests\item_gui_center\run_client_itemmodel_probe.bat` — bounded `runClient`
+  probe that the item models bake.
 - `scripts\server_smoke.bat` / `scripts\client_smoke.bat` — bounded smoke runs
   (dedicated server / client) that terminate only their own process tree.
 
