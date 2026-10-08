@@ -58,8 +58,9 @@
   reuses the label "1.7" but is a different, newer ticket than the already-shipped README/AGENTS "Stage 1.7"
   (source menu + portable light). Do not confuse the two.
 - **Git:** repo `https://github.com/belzoralolbtw/white_fog` (PUBLIC), `origin/master`. The current working version is
-  fixed by commit **`ff5c05a` — `feat: add fading light sources and portable lighting`** (covers stages 1.6–1.11 plus
-  the doc edits) and has already been pushed to `origin/master`. Never push future work without explicit user approval.
+  fixed by commit **`12db179` — `docs: update project memory after release`** (project memory docs), on top of
+  **`ff5c05a` — `feat: add fading light sources and portable lighting`** (stages 1.6–1.11 plus the doc edits);
+  both are already on `origin/master`. Never push future work without explicit user approval.
 
 ## Structure
 
