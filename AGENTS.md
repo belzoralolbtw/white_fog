@@ -315,6 +315,8 @@ Get-ChildItem -Recurse build\classes\java\main -Filter *.class |
   Record the PID and kill only your own tree.
 - **Tests first, then apply.** Sandboxes live under `tests/` and must prove logic before applying to `src/`.
   They are not runtime proof — never claim runtime/gameplay verification from a sandbox.
+- **License.** Proprietary **All Rights Reserved** (© 2026 belzoralolbtw) — no copying, forks or redistribution
+  without prior written permission; earlier CC0-published versions keep their original terms (see `LICENSE`).
 - **Git.** Keep this `AGENTS.md` in the repo. Never commit build artifacts/logs/secrets. Never push without explicit
   user approval.
 

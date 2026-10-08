@@ -1,121 +1,82 @@
-Creative Commons Legal Code
+All Rights Reserved
 
-CC0 1.0 Universal
+Copyright (c) 2026 belzoralolbtw
 
-    CREATIVE COMMONS CORPORATION IS NOT A LAW FIRM AND DOES NOT PROVIDE
-    LEGAL SERVICES. DISTRIBUTION OF THIS DOCUMENT DOES NOT CREATE AN
-    ATTORNEY-CLIENT RELATIONSHIP. CREATIVE COMMONS PROVIDES THIS
-    INFORMATION ON AN "AS-IS" BASIS. CREATIVE COMMONS MAKES NO WARRANTIES
-    REGARDING THE USE OF THIS DOCUMENT OR THE INFORMATION OR WORKS
-    PROVIDED HEREUNDER, AND DISCLAIMS LIABILITY FOR DAMAGES RESULTING FROM
-    THE USE OF THIS DOCUMENT OR THE INFORMATION OR WORKS PROVIDED
-    HEREUNDER.
+Project: White Fog ("white_fog")
 
-Statement of Purpose
+This project — including all of its source code, documentation, and assets
+(textures, models, sounds, data files), together with any other materials
+authored for and distributed with the project (collectively, the "Materials") —
+is the exclusive property of the copyright holder named above. All rights not
+expressly granted in this license are reserved.
 
-The laws of most jurisdictions throughout the world automatically confer
-exclusive Copyright and Related Rights (defined below) upon the creator
-and subsequent owner(s) (each and all, an "owner") of an original work of
-authorship and/or a database (each, a "Work").
+1. No License Granted
 
-Certain owners wish to permanently relinquish those rights to a Work for
-the purpose of contributing to a commons of creative, cultural and
-scientific works ("Commons") that the public can reliably and without fear
-of later claims of infringement build upon, modify, incorporate in other
-works, reuse and redistribute as freely as possible in any form whatsoever
-and for any purposes, including without limitation commercial purposes.
-These owners may contribute to the Commons to promote the ideal of a free
-culture and the further production of creative, cultural and scientific
-works, or to gain reputation or greater distribution for their Work in
-part through the use and efforts of others.
+   No permission or license of any kind is granted, whether expressly or by
+   implication, estoppel or otherwise, except for the limited personal-use
+   permission stated in Section 2. Without the prior written permission of the
+   copyright holder, you may NOT:
 
-For these and/or other purposes and motivations, and without any
-expectation of additional consideration or compensation, the person
-associating CC0 with a Work (the "Affirmer"), to the extent that he or she
-is an owner of Copyright and Related Rights in the Work, voluntarily
-elects to apply CC0 to the Work and publicly distribute the Work under its
-terms, with knowledge of his or her Copyright and Related Rights in the
-Work and the meaning and intended legal effect of CC0 on those rights.
+   a. copy, reproduce, mirror or duplicate the Materials, in whole or in part,
+      in any medium or format;
+   b. modify, adapt, translate, transform or otherwise create derivative works
+      based on the Materials;
+   c. create, publish, distribute or host forks, reuploads, ports or modified
+      versions of the Materials;
+   d. include, embed, incorporate or reuse the Materials, or any part of them,
+      in any other project, mod, modpack, resource pack, datapack, application,
+      product or service;
+   e. publish, distribute, redistribute, transmit, upload, share or otherwise
+      make the Materials available to third parties, including through any
+      website, file host, repository, launcher or mod-distribution platform;
+   f. sublicense, rent, lease, lend, assign, sell, resell or otherwise transfer
+      the Materials or any rights in them;
+   g. use the Materials for any commercial purpose, or otherwise exploit them
+      for profit or other commercial advantage;
+   h. remove, obscure or alter this license or any copyright notice contained in
+      the Materials.
 
-1. Copyright and Related Rights. A Work made available under CC0 may be
-protected by copyright and related or neighboring rights ("Copyright and
-Related Rights"). Copyright and Related Rights include, but are not
-limited to, the following:
+2. Permitted Personal Use
 
-  i. the right to reproduce, adapt, distribute, perform, display,
-     communicate, and translate a Work;
- ii. moral rights retained by the original author(s) and/or performer(s);
-iii. publicity and privacy rights pertaining to a person's image or
-     likeness depicted in a Work;
- iv. rights protecting against unfair competition in regards to a Work,
-     subject to the limitations in paragraph 4(a), below;
-  v. rights protecting the extraction, dissemination, use and reuse of data
-     in a Work;
- vi. database rights (such as those arising under Directive 96/9/EC of the
-     European Parliament and of the Council of 11 March 1996 on the legal
-     protection of databases, and under any national implementation
-     thereof, including any amended or successor version of such
-     directive); and
-vii. other similar, equivalent or corresponding rights throughout the
-     world based on applicable law or treaty, and any national
-     implementations thereof.
+   Subject to your continued compliance with this license, you are granted a
+   limited, non-exclusive, non-transferable and revocable permission to obtain
+   and run an unmodified version of the project ("run" meaning to execute it as
+   a Minecraft mod for your own personal, non-commercial use). This permission
+   covers ordinary gameplay use only. It does NOT permit any act listed in
+   Section 1, and it does not grant any right to the source code or assets for
+   reuse, modification, redistribution or incorporation into any other work.
 
-2. Waiver. To the greatest extent permitted by, but not in contravention
-of, applicable law, Affirmer hereby overtly, fully, permanently,
-irrevocably and unconditionally waives, abandons, and surrenders all of
-Affirmer's Copyright and Related Rights and associated claims and causes
-of action, whether now known or unknown (including existing as well as
-future claims and causes of action), in the Work (i) in all territories
-worldwide, (ii) for the maximum duration provided by applicable law or
-treaty (including future time extensions), (iii) in any current or future
-medium and for any number of copies, and (iv) for any purpose whatsoever,
-including without limitation commercial, advertising or promotional
-purposes (the "Waiver"). Affirmer makes the Waiver for the benefit of each
-member of the public at large and to the detriment of Affirmer's heirs and
-successors, fully intending that such Waiver shall not be subject to
-revocation, rescission, cancellation, termination, or any other legal or
-equitable action to disrupt the quiet enjoyment of the Work by the public
-as contemplated by Affirmer's express Statement of Purpose.
+3. Third-Party Materials
 
-3. Public License Fallback. Should any part of the Waiver for any reason
-be judged legally invalid or ineffective under applicable law, then the
-Waiver shall be preserved to the maximum extent permitted taking into
-account Affirmer's express Statement of Purpose. In addition, to the
-extent the Waiver is so judged Affirmer hereby grants to each affected
-person a royalty-free, non transferable, non sublicensable, non exclusive,
-irrevocable and unconditional license to exercise Affirmer's Copyright and
-Related Rights in the Work (i) in all territories worldwide, (ii) for the
-maximum duration provided by applicable law or treaty (including future
-time extensions), (iii) in any current or future medium and for any number
-of copies, and (iv) for any purpose whatsoever, including without
-limitation commercial, advertising or promotional purposes (the
-"License"). The License shall be deemed effective as of the date CC0 was
-applied by Affirmer to the Work. Should any part of the License for any
-reason be judged legally invalid or ineffective under applicable law, such
-partial invalidity or ineffectiveness shall not invalidate the remainder
-of the License, and in such case Affirmer hereby affirms that he or she
-will not (i) exercise any of his or her remaining Copyright and Related
-Rights in the Work or (ii) assert any associated claims and causes of
-action with respect to the Work, in either case contrary to Affirmer's
-express Statement of Purpose.
+   Minecraft is a trademark of Mojang Studios / Microsoft. Fabric, the Fabric
+   Loader, the Fabric API, and any other third-party libraries or dependencies
+   referenced or required by this project are the property of their respective
+   owners and are governed by their own licenses. This license applies only to
+   the Materials created by and owned by the copyright holder named above, and
+   it grants no rights whatsoever to any third-party work.
 
-4. Limitations and Disclaimers.
+4. No Warranty
 
- a. No trademark or patent rights held by Affirmer are waived, abandoned,
-    surrendered, licensed or otherwise affected by this document.
- b. Affirmer offers the Work as-is and makes no representations or
-    warranties of any kind concerning the Work, express, implied,
-    statutory or otherwise, including without limitation warranties of
-    title, merchantability, fitness for a particular purpose, non
-    infringement, or the absence of latent or other defects, accuracy, or
-    the present or absence of errors, whether or not discoverable, all to
-    the greatest extent permissible under applicable law.
- c. Affirmer disclaims responsibility for clearing rights of other persons
-    that may apply to the Work or any use thereof, including without
-    limitation any person's Copyright and Related Rights in the Work.
-    Further, Affirmer disclaims responsibility for obtaining any necessary
-    consents, permissions or other rights required for any use of the
-    Work.
- d. Affirmer understands and acknowledges that Creative Commons is not a
-    party to this document and has no duty or obligation with respect to
-    this CC0 or use of the Work.
+   THE MATERIALS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT
+   SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE MATERIALS OR THE USE OR OTHER DEALINGS IN
+   THE MATERIALS.
+
+5. Changes of License and Previously Published Versions
+
+   Versions of this project that were previously published under a different
+   license (including CC0-1.0) were distributed under the terms of that license
+   at the time of their publication. This license governs the project as of the
+   date it is applied. Changing the license does not, and cannot, revoke,
+   retroactively cancel or alter any rights that were validly granted to third
+   parties under a prior license for copies they already obtained; those prior
+   grants remain in effect for those previously distributed copies.
+
+6. Contact
+
+   To request permission for any use not expressly granted above, contact the
+   copyright holder (belzoralolbtw) in writing via the project repository:
+   https://github.com/belzoralolbtw/white_fog

@@ -212,4 +212,12 @@ gradlew.bat runClient --no-daemon --console=plain
 
 ## License
 
-This project is released under **CC0-1.0** — see [LICENSE](LICENSE).
+**All Rights Reserved** — Copyright © 2026 belzoralolbtw.
+
+The project is proprietary. Copying, modification, forks, redistribution,
+publication, sublicensing, sale, commercial use, and inclusion of its code or
+assets in any other project or mod are not permitted without prior written
+permission from the copyright holder. Only personal, non-commercial use of an
+unmodified distributed version is allowed. See [LICENSE](LICENSE) for the full
+terms. Minecraft, Fabric and third-party dependencies remain the property of
+their respective owners; this license covers only materials owned by the author.
