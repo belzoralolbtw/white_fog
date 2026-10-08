@@ -48,19 +48,25 @@
     light path hardened — new client `ItemInHandRendererMixin` raises the single packed hand light passed to
     `ItemInHandRenderer.submitHandsWithItems` to `max(vanilla, portable)`, so the item in hand is lit by its own
     offhand source first-person too (unlit/empty/corrupt unchanged, no fullbright, stack/model not swapped).
-- **Verification state:** `gradlew build` + bounded server/client smokes pass; every sandbox passes. Interactive
-  acceptance was done by the user only for stages **1.1–1.3** (and the **1.4 GUI item icons**). Stages 1.4 (rest),
-  1.5, 1.6, 1.7, 1.8, **1.9, 1.10** are **NOT interactively verified** — `PLAYER_GUIDE.md` is now a compact player
-  description (status / features / interactions / fuel / limits / checks), not a manual checklist.
+- **Verification state:** `gradlew build` + bounded server/client smokes pass; every sandbox passes. The current
+  version was **personally verified in-game by the user across the main mechanics**, and that manual pass is what
+  surfaced the fixed bugs (Darkness pulse, abrupt fade-in, misleading HUD source line, menu button sizing,
+  first-person torch). Verified in-game: eternal night/exposure, darkness behavior/no pulse, fading light sources /
+  fuel / menu / actions, `G` panel, offhand portable light, placement/drop/persistence, adaptive menus. Sandboxes and
+  smokes remain **supplementary** automatic logic checks, **not** a substitute for the manual acceptance. Known
+  accepted limitation: the first-person offhand torch may look absent/black while its dynamic light still works
+  (confirmed by the user, treated as non-critical). `PLAYER_GUIDE.md` is a compact player description
+  (status / features / interactions / fuel / limits / checks), not a manual checklist.
 - **Roadmap note (important):** the current `ROADMAP_STEPS.md` contains a single ticket
   «Этап 1.7: Закрытое укрытие и адаптер света» (shelter detector). It is **NOT started / not implemented**
   (no `darkness/shelter/` package; `LightExposureService.isSheltered(...)` returns `false`). That ROADMAP ticket
   reuses the label "1.7" but is a different, newer ticket than the already-shipped README/AGENTS "Stage 1.7"
   (source menu + portable light). Do not confuse the two.
 - **Git:** repo `https://github.com/belzoralolbtw/white_fog` (PUBLIC), `origin/master`. The current working version is
-  fixed by commit **`12db179` — `docs: update project memory after release`** (project memory docs), on top of
+  fixed by commit **`439f5a5` — `docs: update project memory after release`** (project memory docs), on top of
+  **`12db179` — `docs: update project memory after release`**, on top of
   **`ff5c05a` — `feat: add fading light sources and portable lighting`** (stages 1.6–1.11 plus the doc edits);
-  both are already on `origin/master`. Never push future work without explicit user approval.
+  all are already on `origin/master`. Never push future work without explicit user approval.
 
 ## Structure
 
@@ -220,19 +226,16 @@ README.md  ROADMAP_STEPS.md  PLAYER_GUIDE.md   # compact player guide (not a che
 
 ## TODO / known gaps
 
-- **Interactive acceptance is pending for stages 1.4 (rest), 1.5, 1.5-visual, 1.6, 1.7, 1.8, 1.9, 1.10, 1.11.**
-  Use `PLAYER_GUIDE.md`. Ticket 1.11's first-person item light fix has a runtime diagnostic
-  (`WHITEFOG_FP_HAND_LIGHT offhandEmission=... packedBlockBefore=... dynamic=...`, logged once per state change
-  while first-person rendering runs with a valid offhand light) that the user's next in-game run will produce.
-  Ticket 1.9's report (charged offhand torch "not visible in hand", dynamic light off, `G` says «Источник: нет рядом»)
-  was re-audited in 1.10 and the **real root causes were found with javap** (see stage 1.10 in Status): the
-  `instanceof ClientLevel` gate rejected `RenderSectionRegion`, and the hand light path
-  (`EntityRenderer.getPackedLightCoords` → `getBlockLightLevel`) was never hooked, so the held torch stayed black and
-  effectively invisible in the dark. Both are fixed in code; a `STREAM_CODEC` round-trip self-test now proves the
-  `(remaining,lit)` component survives the network codec (so `streamRoundTrip=true` in the server smoke). The
-  `G` "Источник: нет рядом" line refers to the placed-block snapshot (`nearest`, radius 8 + LOS) and is **not** proof
-  of the offhand feature; the placement path/`nearest` snapshot logic was audited (unchanged) but still needs an
-  interactive in-game check. No custom torch item model exists; vanilla `minecraft:item/torch` renders 26 quads.
+- **First-person torch appearance (accepted limitation).** The offhand torch may look absent/black in first person
+  even though its dynamic light works; the user confirmed this in-game and it is treated as non-critical (stage
+  1.11). The related 1.9 report (charged offhand torch "not visible in hand", `G` says «Источник: нет рядом») was
+  re-audited in 1.10/1.11 and the real root causes were found with `javap` and fixed: the `instanceof ClientLevel`
+  gate rejected `RenderSectionRegion` for block-mesh light, and the hand-light path
+  (`EntityRenderer.getPackedLightCoords` → `getBlockLightLevel`) plus the `ItemInHandRenderer.submitHandsWithItems`
+  packed light arg now raise the offhand contribution. A `STREAM_CODEC` round-trip self-test proves the
+  `(remaining,lit)` component survives the network codec (so `streamRoundTrip=true` in the server smoke). Runtime
+  diagnostics `WHITEFOG_PORTABLE_LIGHT_STATE` / `WHITEFOG_FP_HAND_LIGHT` are available if the visual issue is
+  revisited. No custom torch item model exists; vanilla `minecraft:item/torch` renders 26 quads.
 - **ROADMAP «Этап 1.7: Закрытое укрытие» (shelter detector) — not started.** `isSheltered` still returns `false`,
   so the "open sky adds +1 exposure inside a roofed room" rule only depends on `canSeeSky` for now. Planned files:
   `darkness/shelter/{ShelterDetector,ShelterCache,ShelterSnapshot}.java` + `ShelterProvider.isSheltered(player)`.
@@ -243,9 +246,9 @@ README.md  ROADMAP_STEPS.md  PLAYER_GUIDE.md   # compact player guide (not a che
   schema-only. `FlatStoneBlock` is `UNCLASSIFIED` for break rules, so an empty station breaks by normal loot.
 - **Survival mechanics not implemented yet:** real fatigue/calories/water/condition drain, temperature, clothing
   wetness, dysentery, sleep/work, active goal; the base HUD is still a stub.
-- Not yet verified interactively: death/`copyOnDeath`, rejoin after death, dimension change, chunk unload/load,
-  two players on one block, spawn-protection/adventure, station save/load with a job, hopper/explosion/piston
-  station edge cases, fill/drop round-trip under stress, creative-mode fuel consumption.
+- Not part of the manual main-mechanics pass / not separately stress-tested: death/`copyOnDeath`, rejoin after death,
+  dimension change, chunk unload/load, two players on one block, spawn-protection/adventure, station save/load with a
+  job, hopper/explosion/piston station edge cases, fill/drop round-trip under stress, creative-mode fuel consumption.
 - Creative players are not excluded from the inventory fuel tick (matches vanilla; keep if wanted). Any future C2S
   action payload must register its type in the common initializer before its receiver.
 
