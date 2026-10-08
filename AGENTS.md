@@ -51,11 +51,11 @@
   «Этап 1.7: Закрытое укрытие и адаптер света» (shelter detector) and it is **NOT started / not implemented**
   (no `darkness/shelter/` package; `LightExposureService.isSheltered(...)` returns `false`). Do not confuse that
   ticket's label "1.7" with the source-menu / portable-light work, which was a post-1.6 bugfix, not a roadmap stage.
-- **Git:** repo `https://github.com/belzoralolbtw/white_fog` (PUBLIC), `origin/master`. Recent history:
+- **Git:** repo `https://github.com/belzoralolbtw/white_fog` (PUBLIC), `origin/master`. Current chain:
   `ff5c05a` (`feat: add fading light sources and portable lighting`, post-1.6 work) → `12db179` / `439f5a5`
-  (`docs: update project memory after release`) → `3aaac84` (`docs: record manual gameplay acceptance`). This
-  ROADMAP-status documentation sync is **pending**; the exact commit hash is not known yet — the main agent will
-  update this bullet after committing. Never push future work without explicit user approval.
+  (`docs: update project memory after release`) → `3aaac84` (`docs: record manual gameplay acceptance`) →
+  `75a0999` (`docs: align roadmap stage status`). All of these are already on `origin/master`. Never push future
+  work without explicit user approval.
 
 ## Structure
 
