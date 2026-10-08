@@ -57,9 +57,9 @@
   (no `darkness/shelter/` package; `LightExposureService.isSheltered(...)` returns `false`). That ROADMAP ticket
   reuses the label "1.7" but is a different, newer ticket than the already-shipped README/AGENTS "Stage 1.7"
   (source menu + portable light). Do not confuse the two.
-- **Git:** repo `https://github.com/belzoralolbtw/white_fog` (PUBLIC), `origin/master`. Commits exist locally up to
-  "feat: implement darkness exposure stage 1.5"; all work for 1.6–1.8 plus the doc edits is **uncommitted/untracked**.
-  **No push of the current local work was made.** Never push without explicit user approval.
+- **Git:** repo `https://github.com/belzoralolbtw/white_fog` (PUBLIC), `origin/master`. The current working version is
+  fixed by commit **`ff5c05a` — `feat: add fading light sources and portable lighting`** (covers stages 1.6–1.11 plus
+  the doc edits) and has already been pushed to `origin/master`. Never push future work without explicit user approval.
 
 ## Structure
 
