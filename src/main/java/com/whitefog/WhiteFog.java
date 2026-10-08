@@ -5,6 +5,9 @@ import com.whitefog.content.WhiteFogContent;
 import com.whitefog.crafting.CraftingLock;
 import com.whitefog.darkness.EternalNightWorld;
 import com.whitefog.darkness.LightExposureService;
+import com.whitefog.darkness.light.LightSourceInteractions;
+import com.whitefog.darkness.light.LightSourceService;
+import com.whitefog.darkness.light.PortableLightService;
 import com.whitefog.network.WhiteFogPayloads;
 import com.whitefog.server.WhiteFogServer;
 import com.whitefog.station.FlatStoneInteractions;
@@ -68,6 +71,13 @@ public class WhiteFog implements ModInitializer {
 
 		// 9) Сервис воздействия тьмы (этап 1.5): тикается из WhiteFogServer#onEndServerTick.
 		LightExposureService.register();
+
+		// 10) Гаснущие источники света (этап 1.6): компонент топлива + сервис + интеракции.
+		LightSourceService.register();
+		LightSourceInteractions.register();
+
+		// 11) Переносной свет (этап поверх 1.6): серверный адаптер left-hand факела в exposure.
+		PortableLightService.register();
 
 		LOGGER.info("White Fog common initialized (mod id: {})", MOD_ID);
 	}

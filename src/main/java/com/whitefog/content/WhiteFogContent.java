@@ -7,6 +7,7 @@ import com.whitefog.content.block.SmallStoneBlock;
 import com.whitefog.content.block.entity.FlatStoneBlockEntity;
 import com.whitefog.content.item.GroundPlacedBlockItem;
 import com.whitefog.content.menu.FlatStoneMenu;
+import com.whitefog.content.menu.LightSourceMenu;
 
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -84,6 +85,11 @@ public final class WhiteFogContent {
 	public static final MenuType<FlatStoneMenu> FLAT_STONE_MENU = Registry.register(
 			BuiltInRegistries.MENU, WhiteFog.id("flat_stone"),
 			new MenuType<>(FlatStoneMenu::new, FeatureFlags.VANILLA_SET));
+
+	/** Меню источника света (этап поверх 1.6): кнопки Заправить/Потушить/Зажечь, без слотов. */
+	public static final MenuType<LightSourceMenu> LIGHT_SOURCE_MENU = Registry.register(
+			BuiltInRegistries.MENU, WhiteFog.id("light_source"),
+			new MenuType<>(LightSourceMenu::new, FeatureFlags.VANILLA_SET));
 
 	private WhiteFogContent() {
 	}

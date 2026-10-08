@@ -91,10 +91,40 @@ public final class DarknessConfig {
 
 	/** Порог exposure, начиная с которого накладывается vanilla Darkness. */
 	public static final int DARK_EFFECT_EXPOSURE_THRESHOLD = 50;
-	/** Длительность vanilla Darkness в тиках (40 тиков = 2 секунды). */
-	public static final int DARK_EFFECT_DURATION_TICKS = 40;
-	/** Обновлять Darkness только когда до конца осталось не больше 20 тиков. */
-	public static final int DARK_EFFECT_REFRESH_REMAINING_TICKS = 20;
+
+	/**
+	 * Длительность vanilla Darkness в тиках (60 тиков = 3 секунды).
+	 *
+	 * <p>Почему не короткая (было 40): vanilla-эффект Darkness имеет blend-длительность
+	 * {@link #DARK_BLEND_ADVANCE_TICKS} тиков. Пока остаток длительности выше неё, фактор
+	 * смешивания {@code MobEffectInstance$BlendState} держится на 1; как только остаток
+	 * опускается до неё, фактор начинает падать. Если сервер обновлял эффект при остатке
+	 * 20 (&lt; 22), фактор каждую секунду «проваливался» вниз и возвращался — это и давало
+	 * видимую пульсацию затемнения/тумана. Длительность выбрана заметно выше порога обновления,
+	 * чтобы до обновления остаток всегда оставался больше blend-advance.</p>
+	 */
+	public static final int DARK_EFFECT_DURATION_TICKS = 60;
+
+	/**
+	 * Обновлять Darkness, когда до конца осталось не больше 40 тиков.
+	 *
+	 * <p>Обязательно больше {@link #DARK_BLEND_ADVANCE_TICKS} (22): тогда к моменту
+	 * обновления остаток ещё превышает blend-advance, фактор никогда не начинает спадать, и
+	 * пульсации нет. При уходе exposure ниже порога обновление прекращается, и эффект сам
+	 * гаснет за ≤ {@code DARK_EFFECT_DURATION_TICKS + DARK_BLEND_ADVANCE_TICKS} тиков
+	 * (≤ 82 тика ≈ 4.1 с), что покрывается «хвостом» клиентского адаптера.</p>
+	 */
+	public static final int DARK_EFFECT_REFRESH_REMAINING_TICKS = 40;
+
+	/**
+	 * Blend-advance vanilla Darkness в тиках. Источник: байткод 26.2
+	 * {@code MobEffects} — {@code DARKNESS = new MobEffect(HARMFUL, ...).setBlendDuration(22)}
+	 * (все три компонента равны 22); {@code BlendState.tick} считает эффект «видимым», пока
+	 * {@code !instance.endsWithin(22)}. Значение зафиксировано здесь как обоснование порога
+	 * обновления и проверяется sandbox-моделью {@code tests/darkness_light_fix}.
+	 */
+	public static final int DARK_BLEND_ADVANCE_TICKS = 22;
+
 	/** Amplifier vanilla Darkness (0 — базовая сила). */
 	public static final int DARK_EFFECT_AMPLIFIER = 0;
 

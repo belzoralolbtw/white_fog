@@ -2,6 +2,7 @@ package com.whitefog.darkness;
 
 import com.whitefog.WhiteFog;
 import com.whitefog.WhiteFogAttachments;
+import com.whitefog.darkness.light.PortableLightService;
 import com.whitefog.network.DarknessSnapshotPayload;
 import com.whitefog.state.PlayerSurvivalState;
 
@@ -134,12 +135,16 @@ public final class LightExposureService {
 		}
 
 		int blockLight = player.level().getBrightness(LightLayer.BLOCK, eye);
+		// Адаптер переносного света (этап поверх 1.6): вход exposure поднимается до
+		// max(vanilla blockLight, portable emission) ДО неизменной формулы политики.
+		// Это НЕ радиус и НЕ сложение.
+		int effectiveBlockLight = PortableLightService.effectiveBlockLight(player, blockLight);
 		boolean canSeeSky = player.level().canSeeSky(eye);
 		boolean shelter = isSheltered(player); // до готовности shelter-сервиса адаптер возвращает false
 		boolean victorySafe = isVictorySafe(player); // до готовности победы возвращает false
 
 		LightExposurePolicy.Input input = new LightExposurePolicy.Input(
-				blockLight, canSeeSky, shelter, true, false, victorySafe);
+				effectiveBlockLight, canSeeSky, shelter, true, false, victorySafe);
 		LightExposurePolicy.Result result = LightExposurePolicy.evaluate(input,
 				state.getLightExposure(), state.getSafeLightTicks(), state.getDarknessConditionMilli());
 
@@ -153,7 +158,7 @@ public final class LightExposureService {
 			state.setDarknessConditionMilli(result.conditionMilli());
 		}
 
-		session.lastBlockLight = blockLight;
+		session.lastBlockLight = effectiveBlockLight;
 		session.lastShelter = shelter;
 		session.lastSpeedRestricted = result.speedRestricted();
 		session.hasSampled = true;
@@ -189,7 +194,14 @@ public final class LightExposureService {
 
 	/**
 	 * Накладывает/обновляет vanilla Darkness при exposure >= порога.
-	 * Чужой эффект не удаляется: при длительности > 20 тиков не трогаем, при <= 20 — обновляем.
+	 * Чужой эффект не удаляется: при длительности больше порога обновления не трогаем, иначе
+	 * обновляем ДЛИТЕЛЬНОСТЬЮ {@link DarknessConfig#DARK_EFFECT_DURATION_TICKS}, которая заметно
+	 * больше blend-advance Darkness ({@link DarknessConfig#DARK_BLEND_ADVANCE_TICKS}). Благодаря
+	 * этому фактор смешивания эффекта не «проваливается» между обновлениями, и ванильная
+	 * пульсация затемнения не перезапускается (см. DarknessConfig).
+	 *
+	 * <p>Мод НИКОГДА не снимает эффект сам (в т.ч. чужой/слепоту): при уходе exposure ниже порога
+	 * мы просто перестаём обновлять длительность, и наш эффект истекает естественно.</p>
 	 */
 	private static void refreshDarknessEffect(ServerPlayer player, int exposure) {
 		if (exposure < DarknessConfig.DARK_EFFECT_EXPOSURE_THRESHOLD) {

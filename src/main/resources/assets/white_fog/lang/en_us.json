@@ -2,5 +2,6 @@
 	"block.white_fog.flat_stone": "Flat Stone",
 	"block.white_fog.small_stone": "Small Stone",
 	"item.white_fog.flat_stone": "Flat Stone",
-	"item.white_fog.small_stone": "Small Stone"
+	"item.white_fog.small_stone": "Small Stone",
+	"key.white_fog.work_panel": "Light Work Panel"
 }

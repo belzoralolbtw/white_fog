@@ -3,7 +3,12 @@
 	"package": "com.whitefog.client.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
-		"MultiPlayerGameModeMixin"
+		"MultiPlayerGameModeMixin",
+		"LightmapRenderStateExtractorMixin",
+		"DarknessFogEnvironmentMixin",
+		"PortableLightBrightnessGetterMixin",
+		"PortableLightEntityRendererMixin",
+		"ItemInHandRendererMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

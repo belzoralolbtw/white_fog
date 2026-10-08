@@ -2,5 +2,6 @@
 	"block.white_fog.flat_stone": "Плоский камень",
 	"block.white_fog.small_stone": "Камушка",
 	"item.white_fog.flat_stone": "Плоский камень",
-	"item.white_fog.small_stone": "Камушка"
+	"item.white_fog.small_stone": "Камушка",
+	"key.white_fog.work_panel": "Панель работы света"
 }

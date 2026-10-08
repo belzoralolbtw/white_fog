@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "white_fog_lit=true": {
+      "model": "minecraft:block/torch"
+    },
+    "white_fog_lit=false": {
+      "model": "white_fog:block/torch_unlit"
+    }
+  }
+}

@@ -4,6 +4,8 @@ import com.whitefog.WhiteFog;
 import com.whitefog.WhiteFogAttachments;
 import com.whitefog.breaking.BreakTimerService;
 import com.whitefog.darkness.LightExposureService;
+import com.whitefog.darkness.light.LightSourceService;
+import com.whitefog.darkness.light.PortableLightService;
 import com.whitefog.server.command.WhiteFogDebugCommand;
 import com.whitefog.state.PlayerSurvivalState;
 import com.whitefog.station.RecoveryService;
@@ -95,6 +97,13 @@ public final class WhiteFogServer {
 
 		// Этап 1.5: серверный тик воздействия тьмы (в единственном END_SERVER_TICK, без второго player tick).
 		LightExposureService.tickAll(server);
+
+		// Этап 1.6: серверный отсчёт топлива источников света, refuel job-ы и снимки Work Panel.
+		LightSourceService.tickAll(server);
+
+		// Этап поверх 1.7: расход топлива предметов-источников в инвентарях (main + offhand,
+		// ровно по одному разу). Второй tick-обработчик не регистрируется.
+		PortableLightService.tickInventories(server);
 	}
 
 	/** Отключение игрока: сбрасываем сессию разрушения, подсказки и recovery (этапы 1.3/1.4). */
@@ -105,6 +114,7 @@ public final class WhiteFogServer {
 			RecoveryService.clear(player);
 			SmallStonePickup.clear(player);
 			LightExposureService.clear(player);
+			LightSourceService.clear(player);
 		} catch (RuntimeException e) {
 			WhiteFog.LOGGER.error("White Fog: failed to clear break session on disconnect", e);
 		}

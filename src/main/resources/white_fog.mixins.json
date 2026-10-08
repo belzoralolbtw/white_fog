@@ -6,7 +6,22 @@
 		"AbstractContainerMenuMixin",
 		"RecipeManagerMixin",
 		"ServerGamePacketListenerImplMixin",
-		"ServerPlayerGameModeMixin"
+		"ServerPlayerGameModeMixin",
+		"light.BlockStateDefinitionMixin",
+		"light.WallTorchBlockStateDefinitionMixin",
+		"light.LanternBlockStateDefinitionMixin",
+		"light.BlockStateLightEmissionMixin",
+		"light.TorchBlockMixin",
+		"light.WallTorchBlockMixin",
+		"light.BlockPlacementMixin",
+		"light.WallTorchBlockPlacementMixin",
+		"light.LanternBlockPlacementMixin",
+		"light.CampfireBlockPlacementMixin",
+		"light.BlockItemPlaceMixin",
+		"light.BlockPopResourceMixin",
+		"light.FlintAndSteelItemMixin",
+		"light.FireChargeItemMixin",
+		"light.PistonBaseBlockMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

@@ -62,27 +62,41 @@ public final class ItemModelSelfCheck {
 
 			Identifier flatKey = BuiltInRegistries.ITEM.getKey(WhiteFogContent.FLAT_STONE_ITEM);
 			Identifier smallKey = BuiltInRegistries.ITEM.getKey(WhiteFogContent.SMALL_STONE_ITEM);
+			// 1.9: те же данные источника света используют ВАНИЛЬНУЮ модель факела; компонент
+			// white_fog:light_fuel не должен её подменять/скрывать. Проверяем, что bake не даёт
+			// MissingItemModel и quads != 0 для torch/soul_torch (наравне с прочими).
+			Identifier torchKey = Identifier.withDefaultNamespace("torch");
+			Identifier soulTorchKey = Identifier.withDefaultNamespace("soul_torch");
 			ItemModel flatModel = client.getModelManager().getItemModel(flatKey);
 			ItemModel smallModel = client.getModelManager().getItemModel(smallKey);
-			if (flatModel == null || smallModel == null) {
+			ItemModel torchModel = client.getModelManager().getItemModel(torchKey);
+			ItemModel soulTorchModel = client.getModelManager().getItemModel(soulTorchKey);
+			if (flatModel == null || smallModel == null || torchModel == null || soulTorchModel == null) {
 				returnUnlessGaveUp();
 				return;
 			}
 
 			String flat = describe(flatModel, flatKey);
 			String small = describe(smallModel, smallKey);
-			boolean ok = !flat.contains("model=MissingItemModel") && !small.contains("model=MissingItemModel")
-					&& !flat.contains("quads=0") && !small.contains("quads=0")
-					&& !flat.contains("quads=-1") && !small.contains("quads=-1");
+			String torch = describe(torchModel, torchKey);
+			String soulTorch = describe(soulTorchModel, soulTorchKey);
+			boolean ok = isHealthy(flat) && isHealthy(small) && isHealthy(torch) && isHealthy(soulTorch);
 			done = true;
-			WhiteFog.LOGGER.info("WHITEFOG_ITEM_MODEL_SELFTEST flat[{}] small[{}] status={}",
-					flat, small, ok ? "SUCCESS" : "FAIL");
+			WhiteFog.LOGGER.info("WHITEFOG_ITEM_MODEL_SELFTEST flat[{}] small[{}] torch[{}] soulTorch[{}] status={}",
+					flat, small, torch, soulTorch, ok ? "SUCCESS" : "FAIL");
 		} catch (Throwable t) {
 			// Транзиентное состояние загрузки клиента: модель ещё не запечена
 			// (NPE в ModelManager#getItemModel). Ждём следующий тик; о неудаче сообщаем
 			// только после MAX_ATTEMPTS.
 			returnUnlessGaveUp(t);
 		}
+	}
+
+	/** Модель запечена и не пустая (нет MissingItemModel, quads присутствуют). */
+	private static boolean isHealthy(String described) {
+		return !described.contains("model=MissingItemModel")
+				&& !described.contains("quads=0")
+				&& !described.contains("quads=-1");
 	}
 
 	private static String describe(ItemModel model, Identifier key) {

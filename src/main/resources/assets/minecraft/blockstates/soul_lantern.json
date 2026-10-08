@@ -1,0 +1,16 @@
+{
+  "variants": {
+    "hanging=false,white_fog_lit=true": {
+      "model": "minecraft:block/soul_lantern"
+    },
+    "hanging=true,white_fog_lit=true": {
+      "model": "minecraft:block/soul_lantern_hanging"
+    },
+    "hanging=false,white_fog_lit=false": {
+      "model": "white_fog:block/soul_lantern_unlit"
+    },
+    "hanging=true,white_fog_lit=false": {
+      "model": "white_fog:block/soul_lantern_hanging_unlit"
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "white_fog_lit=true": {
+      "model": "minecraft:block/soul_torch"
+    },
+    "white_fog_lit=false": {
+      "model": "white_fog:block/soul_torch_unlit"
+    }
+  }
+}
