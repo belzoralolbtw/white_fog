@@ -4,6 +4,15 @@ A Minecraft **26.2** **Fabric** mod that builds a survival foundation on a
 **server-authoritative player state** and replaces several vanilla interactions
 (crafting, block breaking) with explicit, server-verified rules.
 
+## Status / roadmap
+
+- **Upper-level roadmap stages 1.1–1.6 are complete** and were manually verified in-game by the user across the
+  main mechanics.
+- All later work (fading light sources, the Darkness pulse fix, dynamic light, HUD, the source menu and UI) shipped
+  as **post-1.6 bugfix/stabilization, not as separate roadmap stages 1.7/1.8/1.9/1.10/1.11**.
+- **Roadmap stage 1.7 «Закрытое укрытие и адаптер света» (shelter detector) is NOT started** — see
+  `ROADMAP_STEPS.md`.
+
 ## Requirements
 
 | Component  | Version            |
@@ -34,7 +43,7 @@ Run the client (requires manual stop; do not launch bare):
 gradlew.bat runClient --no-daemon --console=plain
 ```
 
-## Implemented stages
+## Implemented (roadmap stages 1.1–1.6 + post-1.6 bugfixes)
 
 - **Stage 1.1** — persistent, server-authoritative player survival state
   (Fabric Data Attachment API v1, NBT-backed, `copyOnDeath`) with an S2C
@@ -75,8 +84,8 @@ gradlew.bat runClient --no-daemon --console=plain
   (`darknessSchema`, `lightExposure`, `safeLightTicks`, `sampleRemainderTicks`,
   `darknessConditionMilli`, `darknessRevision`) live in the existing attachment
   and migrate from the legacy `Condition`; a `white_fog:darkness_snapshot` S2C
-  payload keeps the client cache in sync. Interactive acceptance of this stage
-  has **not** been performed yet.
+  payload keeps the client cache in sync. Manually verified in-game (see
+  Status / roadmap).
 - **Stage 1.6** — fading light sources. Vanilla `torch`/`wall_torch`,
   `soul_torch`/`soul_wall_torch`, `lantern`/`soul_lantern` and
   `campfire`/`soul_campfire` keep their IDs but gain a persistent, per-dimension
@@ -85,23 +94,24 @@ gradlew.bat runClient --no-daemon --console=plain
   light emission drops to 0 when unlit, and dark client models/textures are
   shipped for the unlit variants. Fuel is carried by the item component
   `white_fog:light_fuel` (`remainingTicks`; extended with a `lit` flag in
-  Stage 1.8, with legacy int migration). Generated sources get a
+  a post-1.6 pass, with legacy int migration). Generated sources get a
   one-time bonus per loaded chunk, placement reads the component (empty = unlit),
   a server-side 20-tick refuel job atomically consumes one accepted fuel item,
   and a Work Panel (`G`, `InputConstants.KEY_G`) shows the nearest source and
   sends the C2S refuel request (`white_fog:light_refuel`). An unlit source is
   still discovered by the Work Panel (`nearest` deliberately ignores `lit`) so an
   empty, just-placed source can be refuelled or re-lit; being unlit it emits no
-  block light and therefore does not affect darkness exposure. Interactive
-  acceptance of this stage has **not** been performed yet.
-- **Stage 1.7 (on top of 1.6)** — source menu, HUD layout fix and portable light.
+  block light and therefore does not affect darkness exposure. Manually
+  verified in-game (see Status / roadmap).
+- **Post-1.6: source menu, HUD layout fix and portable light (bugfix/stabilization,
+  not a roadmap stage).**
   Right-clicking a managed light source (`torch`/`wall_torch`, `soul_torch`/
   `soul_wall_torch`, `lantern`/`soul_lantern`, `campfire`/`soul_campfire`) opens a
   compact server-authoritative `white_fog:light_source` screen (176×150, three
   buttons `Заправить`/`Потушить`/`Зажечь`, vanilla `clickMenuButton`; the state
   arrives via the new S2C `white_fog:source_panel`). Extinguish and re-light are
   immediate and never spend fuel (remaining is preserved, revision bumped); refuel
-  reuses the existing 20-tick job (and, since Stage 1.8, never changes `lit`);
+  reuses the existing 20-tick job (and, after a later post-1.6 pass, never changes `lit`);
   `managedByPost` sources can be inspected but
   refuse every action; all actions re-validate rights/distance/LOS/source UUID/
   revision server-side. The `G` Work Panel was re-laid-out with named constants
@@ -116,11 +126,12 @@ gradlew.bat runClient --no-daemon --console=plain
   local player offhand only, emission 14/10, 1-per-block falloff) and raises the
   server exposure input to `max(vanilla blockLight, emission)` before the
   unchanged `LightExposurePolicy`. No new block/item/entity IDs; only a `MenuType`
-  and the S2C payload. Until Stage 1.8 the charge was never consumed (a deliberate
-  limitation); Stage 1.8 adds the server-authoritative inventory fuel tick.
-  Interactive acceptance of this stage has **not** been performed yet.
-- **Stage 1.8 (on top of 1.7)** — refuel/light semantics, `lit` persistence,
-  inventory fuel tick, menu/HUD text and constant fog darkness.
+  and the S2C payload. Initially the charge was never consumed (a deliberate
+  limitation); a later post-1.6 pass adds the server-authoritative inventory fuel tick.
+  Manually verified in-game (see Status / roadmap).
+- **Post-1.6: refuel/light semantics, `lit` persistence, inventory fuel tick,
+  menu/HUD text and constant fog darkness (bugfix/stabilization, not a roadmap
+  stage).**
   - Refuel adds **exactly 20% of the capacity** per coal/charcoal (torch 2400,
     soul torch 1600, lantern 4800, soul lantern 3200, campfire 3200; campfire
     stick/log keep 2000/8000), so a source at 20% becomes 40%; overflow is
@@ -148,12 +159,17 @@ gradlew.bat runClient --no-daemon --console=plain
   - The client fog darkness factor is now constant for a stable active gate,
     independent of the vanilla effect blend/partial tick (`fogDarknessFactorConstant`),
     which removes the distant Darkness pulse; `voidFactor`, foreign Darkness
-    outside the mod gate and `BLINDNESS` are preserved, and the server formula /
-    real block light are unchanged.
-  Interactive acceptance of this stage has **not** been performed yet.
+  outside the mod gate and `BLINDNESS` are preserved, and the server formula /
+  real block light are unchanged.
+  Manually verified in-game (see Status / roadmap).
 
 ## Not yet implemented
 
+- **Roadmap stage 1.7 «Закрытое укрытие и адаптер света» (shelter detector)** is
+  **not started**: there is no real `darkness/shelter/` detector and
+  `LightExposureService.isSheltered(...)` still returns `false`, so the "open sky
+  adds +1 exposure inside a roofed room" rule currently depends on `canSeeSky`
+  alone. This is the single remaining ticket in `ROADMAP_STEPS.md`.
 - The mod pickaxes `white_fog:bronze_pickaxe` / `white_fog:iron_pickaxe` /
   `white_fog:steel_pickaxe` are **not registered yet** (planned for stage 6.4).
   Until then mining hard blocks and hard stations with a mod pickaxe is
@@ -185,7 +201,7 @@ gradlew.bat runClient --no-daemon --console=plain
 - `tests\eternal_darkness\portable_light\run_portable_light_selftest.bat` —
   logic-only sandbox for the portable offhand light, the source-panel action state
   (extinguish/relight preserve fuel, refuel accepted/full/no-fuel, `managedByPost`
-  refuses, status codes), the **Stage 1.8** semantics (coal = 20% of capacity,
+  refuses, status codes), the **post-1.6** semantics (coal = 20% of capacity,
   refuel never mutates `lit`, `Зажечь` only `unlit -> lit`, `(remaining, lit)`
   persistence with place/drop round-trip, inventory countdown, offhand emission
   limited to lit+count==1, HUD strings without raw ticks/light level and constant

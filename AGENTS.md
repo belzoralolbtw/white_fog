@@ -9,7 +9,7 @@
   Java **25+** (built with JDK 26.0.2.1), Gradle **9.7.1**, Loom **1.18.3** (resolves 1.18.2).
   No Stonecutter / Forge / NeoForge. **No `mappings` line** (26.2 is deobfuscated).
 - **Mod:** id `white_fog`, group `com.whitefog`, version `0.1.0`, environment `*` (dedicated server + client).
-- **Implemented (feature — README/code stage label):**
+- **Implemented (top-level roadmap stage, or post-1.6 bugfix/stabilization):**
   - **1.1** persistent server-authoritative player state (Fabric attachment) + S2C snapshot + client cache + HUD stub.
   - **1.2** vanilla crafting disabled: 2x2 grid, crafting table use, recipe book / place-recipe / creative set-slot,
     and all `CRAFTING` recipes removed from the recipe manager.
@@ -20,36 +20,24 @@
   - **1.5** eternal night (Overworld) + darkness exposure / Condition / speed penalty; **client-only visual
     adapter** removing the Darkness pulse/near-black (constant moderate darkening).
   - **1.6** fading vanilla light sources, per-dimension fuel store, refuel job, `G` Work Panel.
-  - **1.7** right-click source menu (`Заправить`/`Потушить`/`Зажечь`), bounded HUD layout, offhand portable light.
-  - **1.8 (local ticket on top of 1.7)** refuel = 20% of capacity, `Заправить` never changes `lit`, `(remaining, lit)`
-    component with legacy migration, server-side inventory fuel tick, human menu/HUD text, constant fog factor.
-  - **1.9 (bugfix ticket on top of 1.8)** reported-bug pass: (a) Darkness pulse removed by keeping the vanilla
-    effect's blend factor stable (duration 60 / refresh-at-40 &gt; Darkness blend-advance 22) + client suppression;
-    (b) light-source placement record now keyed by the ACTUAL placed block/position (fixes `wall_torch` id mismatch
-    and any support-position quirk) so `nearest`/HUD find it; (c) menu buttons get a named horizontal text padding
-    (`BUTTON_H_PAD`) in wide+compact layouts; (d) `PLAYER_GUIDE.md` fuel table.
-  - **1.10 (deeper bugfix ticket on top of 1.9)** portable offhand light was inert — two real root causes found
-    with `javap` and fixed: (a) `PortableLightClient` required `level instanceof ClientLevel`, but during mesh
-    baking the brightness getter receives `RenderSectionRegion` (a `BlockAndLightGetter`, not a `ClientLevel`), so
-    the block contribution was always 0 → now any `BlockGetter` is accepted and the world is resolved from
-    `Minecraft.level`/`player`; (b) `EntityRenderer.getPackedLightCoords` in 26.2 reads
-    `getBlockLightLevel(entity,pos)` directly (NOT `LightCoordsUtil`), so the hand/player had no dynamic light and
-    the held torch looked black/invisible → new client mixin `PortableLightEntityRendererMixin` raises it. Also
-    added a minimal section-rebuild tracker (no spatial engine) and a `STREAM_CODEC` round-trip self-test proving
-    the `(remaining,lit)` component reaches the client intact.
-  - **1.11 (bugfix ticket on top of 1.10)** reported-bug pass: (a) visual darkening ramped almost abruptly —
-    slowed ONLY the visual fade-in speed `DarknessVisualConfig.FADE_IN_PER_SECOND` 2.0 → **0.4/s** (≈2.5 s ramp);
-    exposure threshold, sample interval, vanilla Darkness duration/refresh and `FADE_OUT_PER_SECOND` (1.0/s)
-    untouched, no pulse reintroduced; (b) HUD source line was misleading — with a valid burning offhand torch and
-    no placed source it said «Источник: нет рядом» while also showing «В руке: Факел»; new pure
-    `LightPanelFormat.hudSourceLine/hudFuelLine` now show «Источник: в руке — Факел» and the offhand `(remaining)`
-    in «Осталось:», while a placed block keeps priority, empty/unlit/corrupt offhand keeps «нет рядом», and the
-    `G` C2S refuel action still targets only a placed block (display split from action); (c) first-person torch
-    light path hardened — new client `ItemInHandRendererMixin` raises the single packed hand light passed to
-    `ItemInHandRenderer.submitHandsWithItems` to `max(vanilla, portable)`, so the item in hand is lit by its own
-    offhand source first-person too (unlit/empty/corrupt unchanged, no fullbright, stack/model not swapped).
+  - **After stage 1.6 (bugfix/stabilization — NOT a separate roadmap stage):** right-click source menu
+    (`Заправить`/`Потушить`/`Зажечь`), bounded HUD layout, offhand portable light; refuel = 20% of capacity,
+    `Заправить` never changes `lit`, `(remaining, lit)` component with legacy migration, server-side inventory
+    fuel tick, human menu/HUD text, constant fog factor.
+  - **Further post-1.6 bugfix/stabilization passes (NOT roadmap stages):** later reported-bug passes fixed the Darkness
+    pulse by keeping the vanilla blend factor stable (duration 60 / refresh-at-40 &gt; Darkness blend-advance 22,
+    plus client suppression); keyed the light-source placement record by the ACTUAL placed block/position (fixes
+    `wall_torch` id mismatch and any support-position quirk) so `nearest`/HUD find it; added the `BUTTON_H_PAD`
+    menu padding; made the portable offhand light actually work (accept any `BlockGetter` — mesh baking passes
+    `RenderSectionRegion`, not a `ClientLevel`; `PortableLightEntityRendererMixin` for the hand/player light via
+    `EntityRenderer.getBlockLightLevel`; `ItemInHandRendererMixin` raising
+    `ItemInHandRenderer.submitHandsWithItems`'s packed hand light to `max(vanilla, portable)`; a minimal
+    section-rebuild tracker; a `STREAM_CODEC` round-trip self-test); slowed the visual fade-in
+    (`DarknessVisualConfig.FADE_IN_PER_SECOND` 2.0 → **0.4/s**, ≈2.5 s, `FADE_OUT_PER_SECOND` unchanged); and split
+    the HUD source line from the `G` refuel action (`LightPanelFormat.hudSourceLine/hudFuelLine`).
 - **Verification state:** `gradlew build` + bounded server/client smokes pass; every sandbox passes. The current
-  version was **personally verified in-game by the user across the main mechanics**, and that manual pass is what
+  version — **upper-level roadmap stages 1.1–1.6 complete, plus the post-1.6 bugfix/stabilization passes** — was
+  **personally verified in-game by the user across the main mechanics**, and that manual pass is what
   surfaced the fixed bugs (Darkness pulse, abrupt fade-in, misleading HUD source line, menu button sizing,
   first-person torch). Verified in-game: eternal night/exposure, darkness behavior/no pulse, fading light sources /
   fuel / menu / actions, `G` panel, offhand portable light, placement/drop/persistence, adaptive menus. Sandboxes and
@@ -57,16 +45,17 @@
   accepted limitation: the first-person offhand torch may look absent/black while its dynamic light still works
   (confirmed by the user, treated as non-critical). `PLAYER_GUIDE.md` is a compact player description
   (status / features / interactions / fuel / limits / checks), not a manual checklist.
-- **Roadmap note (important):** the current `ROADMAP_STEPS.md` contains a single ticket
-  «Этап 1.7: Закрытое укрытие и адаптер света» (shelter detector). It is **NOT started / not implemented**
-  (no `darkness/shelter/` package; `LightExposureService.isSheltered(...)` returns `false`). That ROADMAP ticket
-  reuses the label "1.7" but is a different, newer ticket than the already-shipped README/AGENTS "Stage 1.7"
-  (source menu + portable light). Do not confuse the two.
-- **Git:** repo `https://github.com/belzoralolbtw/white_fog` (PUBLIC), `origin/master`. The current working version is
-  fixed by commit **`439f5a5` — `docs: update project memory after release`** (project memory docs), on top of
-  **`12db179` — `docs: update project memory after release`**, on top of
-  **`ff5c05a` — `feat: add fading light sources and portable lighting`** (stages 1.6–1.11 plus the doc edits);
-  all are already on `origin/master`. Never push future work without explicit user approval.
+- **Roadmap status (important):** the upper-level roadmap stages **1.1–1.6 are complete**; all later work on fading
+  sources, the Darkness pulse, dynamic light, HUD, menu and UI shipped as **post-1.6 bugfix/stabilization, not as
+  separate roadmap stages 1.7/1.8/1.9/1.10/1.11**. The current `ROADMAP_STEPS.md` holds the single remaining ticket
+  «Этап 1.7: Закрытое укрытие и адаптер света» (shelter detector) and it is **NOT started / not implemented**
+  (no `darkness/shelter/` package; `LightExposureService.isSheltered(...)` returns `false`). Do not confuse that
+  ticket's label "1.7" with the source-menu / portable-light work, which was a post-1.6 bugfix, not a roadmap stage.
+- **Git:** repo `https://github.com/belzoralolbtw/white_fog` (PUBLIC), `origin/master`. Recent history:
+  `ff5c05a` (`feat: add fading light sources and portable lighting`, post-1.6 work) → `12db179` / `439f5a5`
+  (`docs: update project memory after release`) → `3aaac84` (`docs: record manual gameplay acceptance`). This
+  ROADMAP-status documentation sync is **pending**; the exact commit hash is not known yet — the main agent will
+  update this bullet after committing. Never push future work without explicit user approval.
 
 ## Structure
 
@@ -81,19 +70,19 @@ src/main/java/com/whitefog/            # COMMON — must NOT import net.minecraf
   crafting/CraftingLock.java           # 1.2: slot predicates, recipe filter, crafting-table use block, self-test
   breaking/BlockBreakRules.java / BlockBreakPolicy.java # 1.3: Category/ToolKind classification, ALLOW/DENY_* + durations
   breaking/BreakTimerService.java / BreakSession.java / StationRemoval.java # 1.3: timer, session, safe station removal
-  content/WhiteFogContent.java         # 1.4/1.7: block/BlockItem/BlockEntityType/MenuType registration (setId required)
+  content/WhiteFogContent.java         # 1.4 + post-1.6: block/BlockItem/BlockEntityType/MenuType registration (setId required)
   content/block/FlatStoneBlock.java / SmallStoneBlock.java # 1.4: station + small stone (SHAPE, instabreak, VARIANT)
   content/block/entity/FlatStoneBlockEntity.java # 1.4: schemaVersion/owner/escrow/output/progress/mode/revision
   content/item/GroundPlacedBlockItem.java / content/menu/FlatStoneMenu.java # 1.4: top-face placement + empty menu
-  content/menu/LightSourceMenu.java    # 1.7: empty source menu; clickMenuButton -> server; broadcastChanges -> refresh
+  content/menu/LightSourceMenu.java    # post-1.6: empty source menu; clickMenuButton -> server; broadcastChanges -> refresh
   station/FlatStoneInteractions.java / FlatStoneRemoval / SmallStonePickup / StationDropHelper / RecoveryService # 1.4
   darkness/DarknessConfig.java / LightExposurePolicy.java / LightExposureService.java # 1.5: exposure/Condition/speed
   darkness/EternalNightWorld.java      # 1.5: Overworld clock=18000 + GameRules.ADVANCE_TIME=false
   darkness/light/LightConfig.java / LightFuelPolicy.java / LightSourceBlocks.java # 1.6: fuel/capacity + WHITE_FOG_LIT
-  darkness/light/LightFuelComponent.java / LightSourceStore.java # 1.6/1.8: item component + per-dimension SavedData
-  darkness/light/LightSourceService.java / LightSourceInteractions.java # 1.6/1.8: scan/tick/refuel/nearest/drop/receiver
-  darkness/light/PortableLightPolicy.java / PortableLightService.java # 1.7/1.8: offhand light + inventory fuel tick
-  darkness/light/LightPanelFormat.java / SourceActionPolicy.java / LightMenuLayout.java # 1.7/1.8 pure UI/action rules
+  darkness/light/LightFuelComponent.java / LightSourceStore.java # 1.6 + post-1.6: item component + per-dimension SavedData
+  darkness/light/LightSourceService.java / LightSourceInteractions.java # 1.6 + post-1.6: scan/tick/refuel/nearest/drop/receiver
+  darkness/light/PortableLightPolicy.java / PortableLightService.java # post-1.6: offhand light + inventory fuel tick
+  darkness/light/LightPanelFormat.java / SourceActionPolicy.java / LightMenuLayout.java # post-1.6 pure UI/action rules
   network/*.java                       # payload records (see Networking below) — registered once in WhiteFogPayloads
   mixin/AbstractContainerMenuMixin.java / RecipeManagerMixin.java / ServerGamePacketListenerImplMixin.java # 1.2
   mixin/ServerPlayerGameModeMixin.java # 1.3: handleBlockBreakAction HEAD -> BreakTimerService
@@ -102,14 +91,14 @@ src/client/java/com/whitefog/client/   # CLIENT — client API only
   WhiteFogClient.java                  # ClientModInitializer: receivers, HUD, keybinds, disconnect clear, dev self-checks
   ClientPlayerState.java / ClientDarknessState.java / ClientLightState.java # client caches (never source of truth)
   network/WhiteFogClientNetworking.java / DarknessClientNetworking.java / LightClientNetworking.java # receivers
-  hud/LightWorkPanelHud.java / hud/WhiteFogHud.java # 1.6/1.7 G panel + stub
-  screen/FlatStoneScreen.java / LightSourceScreen.java # 1.4 / 1.7-1.8 adaptive screens
-  portable/PortableLightClient.java    # 1.7/1.10 offhand dynamic light (local player only) + section-rebuild tracker
+  hud/LightWorkPanelHud.java / hud/WhiteFogHud.java # 1.6 + post-1.6 G panel + stub
+  screen/FlatStoneScreen.java / LightSourceScreen.java # 1.4 / post-1.6 adaptive screens
+  portable/PortableLightClient.java    # post-1.6 offhand dynamic light (local player only) + section-rebuild tracker
   darkness/DarknessVisualConfig.java / DarknessVisualGate.java # 1.5 visual adapter (frame-delta envelope)
   mixin/MultiPlayerGameModeMixin.java  # 1.3 client prediction: cancel vanilla, manual START/ABORT, swing on ALLOW
-  mixin/PortableLightBrightnessGetterMixin.java # 1.7 LightCoordsUtil.BrightnessGetter hook (block mesh light)
-  mixin/PortableLightEntityRendererMixin.java # 1.10 EntityRenderer.getBlockLightLevel hook (hand/player light)
-  mixin/ItemInHandRendererMixin.java   # 1.11 first-person hand light arg raised to max(vanilla, portable)
+  mixin/PortableLightBrightnessGetterMixin.java # post-1.6 LightCoordsUtil.BrightnessGetter hook (block mesh light)
+  mixin/PortableLightEntityRendererMixin.java # post-1.6 EntityRenderer.getBlockLightLevel hook (hand/player light)
+  mixin/ItemInHandRendererMixin.java   # post-1.6 first-person hand light arg raised to max(vanilla, portable)
   mixin/LightmapRenderStateExtractorMixin.java / DarknessFogEnvironmentMixin.java # 1.5 visual (no pulse / milder fog)
   dev/ItemModelSelfCheck.java          # 1.4 dev-only item-model bake check (WHITEFOG_ITEM_MODEL_SELFTEST)
 src/main/resources/                    # fabric.mod.json, white_fog.mixins.json, client mixin config in src/client/resources
@@ -175,7 +164,7 @@ README.md  ROADMAP_STEPS.md  PLAYER_GUIDE.md   # compact player guide (not a che
   creative/spectator, local player only, bounded frame-delta envelope with a 5 s tail covering the 82-tick effect
   drain) + `LightmapRenderStateExtractorMixin`
   (constant `darknessEffectScale`, brightness floor) + `DarknessFogEnvironmentMixin` (fog ≥48, constant factor;
-  `voidFactor`/`BLINDNESS`/foreign Darkness preserved). Visual fade-in was slowed (1.11) to
+  `voidFactor`/`BLINDNESS`/foreign Darkness preserved). Visual fade-in was slowed (post-1.6) to
   `FADE_IN_PER_SECOND = 0.4/s` (≈2.5 s) while `FADE_OUT_PER_SECOND` stays 1.0/s; the gate still goes `active()`
   immediately (pulse stays suppressed), so this only changes how fast the adapter strength ramps. Honest limit:
   at light 0 without ambient the frame can still be dark.
@@ -191,33 +180,33 @@ README.md  ROADMAP_STEPS.md  PLAYER_GUIDE.md   # compact player guide (not a che
   The server ticks only loaded+lit records (−1/tick, `1→0` extinguishes); unlit pauses. A 20-tick
   refuel job re-validates everything and consumes exactly one accepted fuel item. Drop/break writes `remaining`+`lit`
   into the single vanilla drop; pistons do not move a managed source that has a store record.
-- **Fuel policy + item component (1.6/1.8).** Capacities: torch 12000, soul torch 8000, lantern 24000, soul lantern
+- **Fuel policy + item component (1.6 + post-1.6).** Capacities: torch 12000, soul torch 8000, lantern 24000, soul lantern
   16000, campfire 16000. Coal/charcoal adds exactly 20% (2400/1600/4800/3200/3200); campfire stick +2000, log +8000;
   overflow is refused («Топливный запас заполнен», 40-tick cooldown) without spending. `white_fog:light_fuel` =
   `(remainingTicks, lit)`; persistent codec reads the legacy int-only form (`>0 → lit=true`, `0/negative → 0/false`)
   and encodes the pair (network = VAR_INT+BOOL). A charged stack must have `count==1`; a charged `count>1` is "corrupt"
   (no light, no burn, operations/placement refused, no split).
-- **Source menu (1.7).** Right-click a managed source opens the server-authoritative `white_fog:light_source` menu
+- **Source menu (post-1.6).** Right-click a managed source opens the server-authoritative `white_fog:light_source` menu
   (no slots; buttons via vanilla `clickMenuButton`): `Заправить` id 1 (20-tick job), `Потушить` id 2 (immediate,
   preserves fuel), `Зажечь` id 3 (immediate, requires `remaining>0`, spends nothing). `managedByPost` allows
   inspect, refuses actions.   State arrives via S2C `source_panel`; the panel refreshes through `broadcastChanges`.
   Campfire opens the menu with an empty hand only (eating/shovel/flint stay vanilla). All actions re-validate
   rights/range/LOS/source UUID/revision server-side. `LightMenuLayout` sizes each button as
   `labelWidth + 2*BUTTON_H_PAD` in both wide and compact modes, so labels are never tighter than the button.
-- **HUD (1.6/1.7/1.11).** `G` toggles a bounded, content-sized Work Panel (named constants, text clamped so nothing
+- **HUD (1.6 + post-1.6).** `G` toggles a bounded, content-sized Work Panel (named constants, text clamped so nothing
   overflows on narrow windows): nearest source, human time-to-empty `Осталось: X мин Y сек`, offhand portable light
   `В руке: Факел`/`Факел душ`, and a custom eternal-night clock `Ночь · HH:MM` from the world clock (no misleading
-  vanilla day). Since 1.11 the source line is built by pure `LightPanelFormat.hudSourceLine/hudFuelLine`:
+  vanilla day). In a later post-1.6 pass the source line is built by pure `LightPanelFormat.hudSourceLine/hudFuelLine`:
   placed block wins («Источник: Факел · горит»); otherwise a valid burning offhand light is shown as the source
   («Источник: в руке — Факел» + its `(remaining)` in «Осталось:»); empty/unlit/corrupt offhand keeps
   «Источник: нет рядом». This is display only — `G`'s C2S refuel still targets a placed block only.
-- **Portable light (1.7/1.8/1.10).** A charged `torch`/`soul_torch` (`lit && remaining>0 && count==1`) in the
+- **Portable light (post-1.6).** A charged `torch`/`soul_torch` (`lit && remaining>0 && count==1`) in the
   offhand gives client-side dynamic light (local player only, emission 14/10, 1-per-block falloff) through **three**
   hooks: `LightCoordsUtil.BrightnessGetter` (block-mesh light), `EntityRenderer.getBlockLightLevel` (hand/player
-  model light, added in 1.10), and `ItemInHandRenderer.submitHandsWithItems` (first-person hand light arg, added in
-  1.11 via `PortableLightClient.raisePackedLight`), and raises the server exposure input to
+  model light, added in a post-1.6 pass), and `ItemInHandRenderer.submitHandsWithItems` (first-person hand light arg, added in
+  a later post-1.6 pass via `PortableLightClient.raisePackedLight`), and raises the server exposure input to
   `max(vanilla blockLight, emission)` before the unchanged policy. `PortableLightClient` accepts any `BlockGetter` — in 26.2 mesh baking passes a
-  `RenderSectionRegion`, not a `ClientLevel` (the 1.10 root cause). A minimal tracker
+  `RenderSectionRegion`, not a `ClientLevel` (the root cause). A minimal tracker
   (`PortableLightClient.tickSectionRebuilds`, called from `END_CLIENT_TICK`) marks sections dirty via
   `Minecraft.levelExtractor.setSectionDirty(...)` when the offhand emission/position changes, so the mesh is
   re-lit as the player moves (no spatial engine). The inventory tick burns lit source items in the main inventory and
@@ -227,9 +216,9 @@ README.md  ROADMAP_STEPS.md  PLAYER_GUIDE.md   # compact player guide (not a che
 ## TODO / known gaps
 
 - **First-person torch appearance (accepted limitation).** The offhand torch may look absent/black in first person
-  even though its dynamic light works; the user confirmed this in-game and it is treated as non-critical (stage
-  1.11). The related 1.9 report (charged offhand torch "not visible in hand", `G` says «Источник: нет рядом») was
-  re-audited in 1.10/1.11 and the real root causes were found with `javap` and fixed: the `instanceof ClientLevel`
+  even though its dynamic light works; the user confirmed this in-game and it is treated as non-critical (post-1.6
+  bugfix pass). The earlier report (charged offhand torch "not visible in hand", `G` says «Источник: нет рядом») was
+  re-audited in the post-1.6 passes and the real root causes were found with `javap` and fixed: the `instanceof ClientLevel`
   gate rejected `RenderSectionRegion` for block-mesh light, and the hand-light path
   (`EntityRenderer.getPackedLightCoords` → `getBlockLightLevel`) plus the `ItemInHandRenderer.submitHandsWithItems`
   packed light arg now raise the offhand contribution. A `STREAM_CODEC` round-trip self-test proves the
@@ -279,8 +268,8 @@ tests\item_gui_center\run_client_itemmodel_probe.bat
 tests\eternal_darkness\{exposure,light,portable_light}\run_*_selftest.bat
 tests\darkness_visual\run_darkness_visual_selftest.bat
 tests\darkness_visual\run_client_visual_probe.bat
-tests\darkness_light_fix\run_darkness_light_fix_selftest.bat   :: 1.9 fix logic (blend stability, placement recording, button padding)
-tests\portable_light_dynamic\run_portable_light_dynamic_selftest.bat  :: 1.10 root cause (RenderSectionRegion gate, falloff, entity light, section radius)
+tests\darkness_light_fix\run_darkness_light_fix_selftest.bat   :: post-1.6 fix logic (blend stability, placement recording, button padding)
+tests\portable_light_dynamic\run_portable_light_dynamic_selftest.bat  :: post-1.6 root cause (RenderSectionRegion gate, falloff, entity light, section radius)
 ```
 Expected sandbox sizes: break_timer 118, station 270, item_gui_center 14, exposure 89, light 69,
 portable_light 469, darkness_visual 67, darkness_light_fix 23, portable_light_dynamic 81. Sandboxes are **logic-only and NOT runtime proof** — say so in reports.
@@ -372,15 +361,15 @@ Get-ChildItem -Recurse build\classes\java\main -Filter *.class |
   `getBlockLightLevel(entity,pos)` directly (via `entity.level().getBrightness(BLOCK,…)`), it does **not** call
   `LightCoordsUtil` — so entity/hand light needs its own `EntityRenderer.getBlockLightLevel` hook. Section
   re-mesh is requested with `Minecraft.levelExtractor.setSectionDirty(x,y,z)` (public).
-- **First-person hand light (1.11, javap 26.2).** `GameRenderer#renderItemInHand` feeds exactly one packed light
+- **First-person hand light (post-1.6, javap 26.2).** `GameRenderer#renderItemInHand` feeds exactly one packed light
   into `ItemInHandRenderer#submitHandsWithItems(float,PoseStack,SubmitNodeCollector,LocalPlayer,int)`. Our
   `ItemInHandRendererMixin` `@ModifyVariable(index=5, argsOnly=true)` raises it to `max(vanilla block, portable)`
   via `PortableLightClient.raisePackedLight`. Idempotent with the `EntityRenderer` hook; unlit/empty/corrupt
   unchanged; no stack/model swap, no fullbright.
-- **HUD source display split from action (1.11).** `LightPanelFormat.hudSourceLine/hudFuelLine` are pure; the HUD
+- **HUD source display split from action (post-1.6).** `LightPanelFormat.hudSourceLine/hudFuelLine` are pure; the HUD
   shows a valid burning offhand as «Источник: в руке — …» when no block is nearby, but `handleLightPanelKey`
   still sends a C2S refuel only for a placed block.
-- **Visual fade-in (1.11).** Only `DarknessVisualConfig.FADE_IN_PER_SECOND` changed 2.0 → 0.4/s; server
+- **Visual fade-in (post-1.6).** Only `DarknessVisualConfig.FADE_IN_PER_SECOND` changed 2.0 → 0.4/s; server
   thresholds/sample interval and `FADE_OUT_PER_SECOND` unchanged.
 - **References (adapted, not copied):** Fabric API (`fabric-events-interaction-v0`, `fabric-menu-api-v1`,
   `fabric-networking-api-v1`, `fabric-lifecycle-events-v1`, `fabric-key-mapping-api-v1`, `fabric-rendering-v1`);
