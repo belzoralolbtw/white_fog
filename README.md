@@ -63,6 +63,20 @@ gradlew.bat runClient --no-daemon --console=plain
   100 ticks" is available. Includes the GUI icon **hotfixes**: separate item
   models with corrected `display.gui` scale/translation so `small_stone` and
   `flat_stone` render centered in inventory slots.
+- **Stage 1.5** — eternal night and darkness exposure. The Overworld is pinned
+  to midnight via the 26.2 world-clock system (`GameRules.ADVANCE_TIME=false` +
+  the default clock held at 18000), while the new server-authoritative
+  `LightExposureService` samples each survival/adventure player once per second
+  from the block light in their eye cell: darkness builds exposure, bright light
+  both drains it and restores `Condition`, and continuous bright rest (600 ticks)
+  resets it. Exposure adds a vanilla Darkness effect, a named movement-speed
+  penalty (`white_fog:darkness_slow`, ×0.85) with sprint disabled, and — past
+  `exposure>=90` — drains `Condition` to a normal death. The new fields
+  (`darknessSchema`, `lightExposure`, `safeLightTicks`, `sampleRemainderTicks`,
+  `darknessConditionMilli`, `darknessRevision`) live in the existing attachment
+  and migrate from the legacy `Condition`; a `white_fog:darkness_snapshot` S2C
+  payload keeps the client cache in sync. Interactive acceptance of this stage
+  has **not** been performed yet.
 
 ## Not yet implemented
 
@@ -74,6 +88,12 @@ gradlew.bat runClient --no-daemon --console=plain
   `flat_stone` and `small_stone` do not appear in the world naturally.
 - **Station job recipes (stage 3.5)** are not implemented yet: the station menu
   is empty apart from a recipe-tab placeholder, and no tool recipes exist.
+- **Fading light sources (stage 1.6)** are not implemented yet: vanilla
+  `torch`/`wall_torch`, `soul_torch`/`soul_wall_torch`, `lantern`/`soul_lantern`
+  and `campfire` are planned to burn fuel (coal/charcoal, plus stick/logs for a
+  campfire) and go dark once it runs out. No new block or item IDs will be
+  registered — the vanilla IDs are kept, and only unlit client variants are
+  added.
 
 ## Tests
 
@@ -85,6 +105,9 @@ gradlew.bat runClient --no-daemon --console=plain
   item GUI icon centering using the real 26.2 `ItemTransform`;
   `tests\item_gui_center\run_client_itemmodel_probe.bat` — bounded `runClient`
   probe that the item models bake.
+- `tests\eternal_darkness\exposure\run_eternal_darkness_selftest.bat` —
+  logic-only sandbox for the light-exposure policy, sampling cadence, migration,
+  serialization and snapshot sync (not a runtime proof).
 - `scripts\server_smoke.bat` / `scripts\client_smoke.bat` — bounded smoke runs
   (dedicated server / client) that terminate only their own process tree.
 

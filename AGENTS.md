@@ -13,6 +13,7 @@
 - **Этап 1.4 — HOTFIX центрирования GUI-иконки `small_stone` (запрошен явно).** После фикса видимости иконка «уехала вниз, не по центру». Причина — не размер, а **положение bbox**: элементы `white_fog:block/small_stone_0` лежат в `y 0..3` (bbox-центр `(0.5, 0.09375, 0.5)`, не `(0.5,0.5,0.5)`), поэтому стандартный `gui`-transform (`rotation [30,225,0]`, `scale 1.25`) проецирует bbox-центр на `[0, −7.036, −4.062]` px от центра слота. Изменён **только** `gui.translation` в `assets/white_fog/models/item/small_stone.json`: `[0,0,0]` → `[0.0, 7.036, 4.062]` (rotation/scale и остальные контексты `display` не тронуты). Доказано sandbox `tests\item_gui_center` реальным `ItemTransform.apply`/`PoseStack` 26.2: bbox-центр после GUI rotation/scale/translation ровно `(0,0,0)`, размер сохранён. Сборка `BUILD SUCCESSFUL` (`logs/build_20261008_002731.txt`); sandbox before→after `status=FAILURE` (`logs/item_gui_center_selftest_20261008_002656.txt`) → `status=SUCCESS` (`logs/item_gui_center_selftest_20261008_002717.txt`); bounded runtime probe `status=SUCCESS`, `WHITEFOG_ITEM_MODEL_SELFTEST ... small[... quads=12] status=SUCCESS` (`logs/itemmodel_probe_20261008_002905.txt`). См. раздел «Этап 1.4 — hotfix центрирования GUI-иконки small_stone».
 - **Этап 1.4 — HOTFIX центрирования GUI-иконки `flat_stone` (запрошен явно).** Пользователь: после фикса `small_stone` иконка `flat_stone` в инвентаре «немного смещена вниз». Причина та же, что у `small_stone`: `items/flat_stone.json` ссылалась **напрямую** на block-модель `white_fog:block/flat_stone`, а её bbox (элементы `x/z 1..15`, `y 0..4`) имеет центр `(0.5, 0.125, 0.5)` — ниже центра слота. Стандартный наследуемый от `minecraft:block/block` `gui`-transform (`rotation [30,225,0]`, `translation [0,0,0]`, `scale 0.625`) проецировал bbox-центр на `[0, −3.248, −1.875]` px. Добавлена отдельная предметная модель `assets/white_fog/models/item/flat_stone.json` (`parent: white_fog:block/flat_stone` + **только** `display.gui` с тем же rotation/scale и исправленным `translation [0.0, 3.248, 1.875]`), `items/flat_stone.json` переключена на `white_fog:item/flat_stone`. Прочие контексты `display` наследуются из `minecraft:block/block` без изменений (merge по контексту целиком — `ResolvedModel.findTopTransform`, javap 26.2). Мировая geometry/blockstate/registration/loot/размер предмета не тронуты. Сборка `BUILD SUCCESSFUL` (`logs/build_20261008_003736.txt`); sandbox `tests\item_gui_center` до/после — `passed=13 failed=1` (`logs/item_gui_center_selftest_20261008_003712.txt`) → `passed=14 failed=0`, `status=SUCCESS` (`logs/item_gui_center_selftest_20261008_003726.txt`); bounded runtime probe — `status=SUCCESS`, `WHITEFOG_ITEM_MODEL_SELFTEST flat[... quads=24] small[... quads=12] status=SUCCESS` (`logs/itemmodel_probe_20261008_003754.txt`). См. раздел «Этап 1.4 — hotfix центрирования GUI-иконки flat_stone».
 - **Этап 1.4 — ПОДТВЕРЖДЕНИЕ GUI-иконок (пользователь, вручную).** Пользователь подтвердил, что обе предметные иконки `white_fog:flat_stone` и `white_fog:small_stone` в инвентаре/хотбаре отображаются «ВСЁ НОРМ»: различимы и стоят по центру слота (видны исправления hotfix'ов видимости и центрирования). Это подтверждение относится **только** к GUI-иконкам и **НЕ** покрывает остальные пункты интерактивной приёмки 1.4 — 100 циклов установки/снятия, два игрока одновременно, полный инвентарь/один дроп, hopper/меню, save/load с job, границы чанков, взрыв, piston, dedicated server без клиентских ресурсов — они остаются в TODO.
+- **Этап 1.5 «Сервер вечной ночи и воздействие тьмы» — РЕАЛИЗОВАН (автономный тикет).** В существующий attachment `PlayerSurvivalState` добавлены `darknessSchema=1`, `lightExposure`, `safeLightTicks`, `sampleRemainderTicks`, `darknessConditionMilli`, `darknessRevision` (+ добавочная миграция из `condition`); чистая `LightExposurePolicy` (DTO `Input` + неизменяемый `Result`); сервис `LightExposureService` в единственном `END_SERVER_TICK` (второго player tick нет); вечная ночь в Overworld через clock-систему 26.2 (`GameRules.ADVANCE_TIME=false` + `clockManager().setTotalTicks(defaultClock,18000)`); S2C `white_fog:darkness_snapshot` зарегистрирован один раз в common до ресивера, клиент хранит последний revision и очищает кэш на disconnect; снимки при join/respawn/dimension немедленно, в тике min 5 тиков/heartbeat 100. Новых Item/Block/Entity ID нет. Сборка `BUILD SUCCESSFUL` (`logs/build_20261008_142602.txt`); server smoke `status=SUCCESS` (`logs/server_smoke_20261008_142619.txt`, строки `darkness light-exposure service registered (stage 1.5...)` и `eternal night enabled (advance_time=false, day_time=18000)`); client smoke `status=SUCCESS` (`logs/client_smoke_20261008_142649.txt`, `darkness snapshot receiver registered (stage 1.5)`); sandbox `tests\eternal_darkness\exposure` — `passed=89 failed=0` (`logs/eternal_darkness_selftest_20261008_142709.txt`); `tests\break_timer` — `passed=118 failed=0`; `tests\station` — `passed=270 failed=0`. Интерактивная приёмка не проводилась (см. TODO). См. раздел «Этап 1.5 (полностью)».
 - **Цель:** Minecraft **26.2**, Fabric Loader **0.19.5**, Fabric API **0.161.0+26.2**, Java **25+** (собрано JDK 26.0.2.1), Gradle **9.7.1**, Loom **1.18.3**.
 - Stonecutter/Forge/NeoForge/прочие версии MC **не используются**; строки `mappings` в сборке нет (26.2 деобфусцирован).
 - Mod ID: `white_fog`; group `com.whitefog`; version `0.1.0`; env `*` (запускается и как dedicated server, и как клиент).
@@ -50,14 +51,21 @@ src/main/java/com/whitefog/            # COMMON — не импортирует 
   station/SmallStonePickup.java         # этап 1.4: подбор камушка (main-hand, cooldown 2, block loot подавлен)
   station/StationDropHelper.java        # этап 1.4: inventory insert + pending ItemEntity (pickup delay 10)
   station/RecoveryService.java          # этап 1.4: recovery 2 cobblestone -> 1 flat_stone за 100 тиков (world interaction)
+  darkness/DarknessConfig.java          # этап 1.5: tunables/пороги/дельты/интервалы (русские комментарии)
+  darkness/LightExposurePolicy.java     # этап 1.5: чистая политика (DTO Input + immutable Result), без Minecraft
+  darkness/LightExposureService.java    # этап 1.5: тик/сессии/sample/effect/modifier/death + S2C-снимок (не сохраняется)
+  darkness/EternalNightWorld.java       # этап 1.5: Overworld clock=18000 + GameRules.ADVANCE_TIME=false (SERVER_STARTED + START_LEVEL_TICK)
+  network/DarknessSnapshotPayload.java  # этап 1.5: S2C white_fog:darkness_snapshot (7 полей, StreamCodec.composite)
   mixin/AbstractContainerMenuMixin.java       # этап 1.2: отмена clicked по сетке/результату InventoryMenu/CraftingMenu (client+server)
   mixin/RecipeManagerMixin.java               # этап 1.2: @ModifyVariable apply(RecipeMap) — удаление всех CRAFTING-рецептов
   mixin/ServerGamePacketListenerImplMixin.java # этап 1.2: блок placeRecipe и creative set-slot в слоты крафта
   mixin/ServerPlayerGameModeMixin.java         # этап 1.3: @Inject handleBlockBreakAction HEAD → BreakTimerService (START/STOP/ABORT)
 src/client/java/com/whitefog/client/   # CLIENT — только client API
-  WhiteFogClient.java                  # ClientModInitializer: receiver + HUD + disconnect clear + dev self-check миксина
+  WhiteFogClient.java                  # ClientModInitializer: receiver + HUD + disconnect clear + dev self-check миксина (этап 1.5: darkness receiver + sprint mirror)
   ClientPlayerState.java               # клиентский кэш снимка (не источник истины)
+  ClientDarknessState.java             # этап 1.5: клиентский кэш последнего снимка тьмы (хранит последний revision)
   client/network/WhiteFogClientNetworking.java  # ClientPlayNetworking.registerGlobalReceiver
+  client/network/DarknessClientNetworking.java  # этап 1.5: получатель white_fog:darkness_snapshot (только client source set)
   client/hud/WhiteFogHud.java          # заглушка HudElement (пока ничего не рисует)
   client/screen/FlatStoneScreen.java   # этап 1.4: AbstractContainerScreen<FlatStoneMenu>, своя панель (GuiGraphicsExtractor), регистрация в MenuScreens
   client/dev/ItemModelSelfCheck.java   # этап 1.4 hotfix: dev-only проверка bake item-моделей flat_stone/small_stone (WHITEFOG_ITEM_MODEL_SELFTEST)
@@ -88,6 +96,10 @@ tests/item_gui_center/                 # ЭТАП 1.4 hotfix: sandbox центр
   run_gui_icon_center_selftest.bat     # javac+java foreground, hard-timeout, UTF-8 лог + .result в logs/ (14 проверок)
   run_client_itemmodel_probe.bat|.ps1  # bounded runClient: ждёт WHITEFOG_ITEM_MODEL_SELFTEST, свой PID-три, timeout 150 c
   README.md                            # что доказывает и что НЕ доказывает (matrix-proof, НЕ пиксельный рендер)
+tests/eternal_darkness/exposure/       # ЭТАП 1.5: независимый sandbox вечной ночи/воздействия тьмы (не в build, не трогает src/)
+  src/com/whitefog/tests/darkness/     # ExposurePolicy/StateModel/ExposureServiceModel/SelfTest — чистая логика без Minecraft
+  run_eternal_darkness_selftest.bat    # javac+java foreground, hard-timeout 20 c, UTF-8 лог + .result в logs/ (89 проверок)
+  README.md                            # что доказывает и что НЕ доказывает (не runtime-proof)
 ```
 `common` не содержит ссылок на `net.minecraft.client.*` — проверено по скомпилированным классам
 `build/classes/java/main` (см. «Build & run»).
@@ -857,6 +869,89 @@ thirdperson/firstperson` наследуются из `white_fog:block/flat_stone
 2. Block-модель/мировая geometry, blockstate, registration, loot, размер предмета, `small_stone` и его proof
    не менялись; правка исключительно в `display.gui` новой предметной модели `flat_stone`.
 
+## Этап 1.5 (полностью)
+
+Серверная вечная ночь и воздействие тьмы. Этапы 1.1–1.4 заморожены: крафт/mining/prediction/
+предметы/взаимодействия не переписывались. Второй player tick не регистрировался — новый сервис
+тикается из единственного `WhiteFogServer#onEndServerTick`. Новых Item/Block/Entity ID нет
+(добавлен только обязательный payload id `white_fog:darkness_snapshot`).
+
+- **Данные (`state/PlayerSurvivalState`).** В существующий attachment добавлены поля
+  `darknessSchema=1`, `lightExposure` (0..100), `safeLightTicks` (0..600),
+  `sampleRemainderTicks` (0..19), `darknessConditionMilli` (0..100000), `darknessRevision`.
+  NBT-ключи: `darkness_schema`, `light_exposure`, `safe_light_ticks`, `sample_remainder_ticks`,
+  `darkness_condition_milli`, `darkness_revision`. Миграция добавочная: при отсутствии
+  `darkness_condition_milli` он равен `round(clamp(condition,0,100)*1000)`, а `condition`
+  отображает милли-значение (единый источник истины). Второго attachment нет; `copyOnDeath`
+  сохраняет шкалы. `setSampleRemainderTicks` намеренно не меняет ревизии (иначе был бы лишний снимок).
+- **Политика (`darkness/LightExposurePolicy`).** Чистая (без импортов Minecraft) функция: DTO входа
+  `Input{blockLight,canSeeSky,shelter,alive,exempt,victorySafe}` и неизменяемый
+  `Result{exposure,safeLightTicks,conditionMilli,speedRestricted,darkEffectRequired,deathRequired}`.
+  Дельты: victorySafe/light>=9 → −2; light 5..8 → 0; light 0..4 → +1 (+1 если видно небо и нет укрытия);
+  clamp 0..100. Светлый отдых: +20 за sample, cap 600, после 600 `exposure=0`. Condition:
+  `exposure>=90` → −50 тыс. (0 → `deathRequired`); иначе в ярком/victorySafe → +50, cap 100000;
+  промежуточный — без изменений. Пороги: Darkness при `exposure>=50`, штраф скорости при `>=75`.
+- **Сервис (`darkness/LightExposureService`).** Runtime-сессии в `Map<UUID,Session>` (не сохраняются).
+  Для online survival/adventure: `sampleRemainder++` каждый тик, при 20 — вычесть 20 и один sample;
+  creative/spectator не накапливают remainder и не получают штрафов; guard `lastProcessedTick` не даёт
+  второго sample на повторном тике; при незагруженной клетке глаза sample пропускается без догоняющего
+  расчёта. Block light — `Level#getBrightness(LightLayer.BLOCK, BlockPos.containing(eye))`; canSeeSky —
+  `Level#canSeeSky(eye)`. Адаптеры-заглушки: `isSheltered=false`, `isVictorySafe=false` (будущий shelter
+  подменяет поставщика булева значения, не формулу). Darkness — `MobEffects.DARKNESS` (Holder), duration 40,
+  amplifier 0, без частиц; refresh только при остатке <=20 (чужой эффект не удаляется). Скорость — один
+  transient modifier `white_fog:darkness_slow` (`ADD_MULTIPLIED_TOTAL`, amount −0.15 = ×0.85) на
+  `Attributes.MOVEMENT_SPEED`; при `<75` снимается только свой. Спринт гасится на сервере и зеркально
+  на клиенте (`ClientTickEvents.END_CLIENT_TICK`). Смерть — `player.kill(serverLevel)` (обычный death path).
+- **Вечная ночь (`darkness/EternalNightWorld`).** MC 26.2 заменил `dayTime` на WorldClock:
+  `ServerLifecycleEvents.SERVER_STARTED` + `ServerTickEvents.START_LEVEL_TICK` для Overworld выставляют
+  глобальный `GameRules.ADVANCE_TIME=false` и `server.clockManager().setTotalTicks(overworldDefaultClock,
+  18000)`, восстанавливая при внешнем изменении (`/time`). Nether/End не трогаются.
+- **Сеть (`network/DarknessSnapshotPayload`).** S2C `white_fog:darkness_snapshot`
+  `{revision,blockLight,lightExposure,safeLightTicks,conditionMilli,shelter,speedRestricted}`;
+  тип зарегистрирован один раз в `WhiteFogPayloads` до клиентского ресивера. Client
+  (`client/ClientDarknessState`, `client/network/DarknessClientNetworking`) хранит только последний
+  revision, отбрасывает устаревшие, очищает кэш на disconnect. Снимок при join/respawn/dimension —
+  немедленно; в тике — по изменению при min 5 тиков и heartbeat 100. Существующий base snapshot
+  (`player_state_sync`) не дублируется за render frame (он идёт по своему интервалу).
+- **Проверки.** Сборка `BUILD SUCCESSFUL` (`logs/build_20261008_142602.txt`); server smoke
+  `status=SUCCESS` (`logs/server_smoke_20261008_142619.txt`; строки
+  `White Fog: darkness light-exposure service registered (stage 1.5, server-authoritative)` и
+  `White Fog: eternal night enabled (advance_time=false, day_time=18000)`); client smoke
+  `status=SUCCESS` (`logs/client_smoke_20261008_142649.txt`; `darkness snapshot receiver registered (stage 1.5)`,
+  `MultiPlayerGameModeMixin applied=true`); sandbox `tests\eternal_darkness\exposure` — `passed=89 failed=0`,
+  `SELFTEST status=SUCCESS` (`logs/eternal_darkness_selftest_20261008_142709.txt`); `tests\break_timer` —
+  `passed=118 failed=0`; `tests\station` — `passed=270 failed=0`. Common без `net/minecraft/client.*`
+  (проверено по `build/classes/java/main`).
+
+### Этап 1.5 — API evidence (javap 26.2 / Fabric API 0.161.0+26.2)
+- Fabric: `ServerTickEvents.START_LEVEL_TICK`/`END_LEVEL_TICK` (в 26.2 world→level, callback `ServerLevel`),
+  `ServerLifecycleEvents.SERVER_STARTED` (`MinecraftServer`), `ClientTickEvents.END_CLIENT_TICK` (`Minecraft`),
+  `PayloadTypeRegistry.clientboundPlay().register`, `ServerPlayNetworking.{canSend,send}`,
+  `ClientPlayNetworking.registerGlobalReceiver`, `ClientPlayConnectionEvents.DISCONNECT`.
+- Vanilla 26.2: `MinecraftServer.{getGlobalGameRules,clockManager,overworld,getTickCount,getPlayerList}`;
+  `DimensionType.defaultClock():Optional<Holder<WorldClock>>`; `ServerClockManager.{getTotalTicks,setTotalTicks}`
+  (tick читает `GameRules.ADVANCE_TIME`); `GameRules.ADVANCE_TIME` (бывшее `doDaylightCycle`),
+  `GameRules.{get,set(T,MinecraftServer)}`; `Level::{isLoaded,getBrightness(LightLayer,BlockPos),canSeeSky}`,
+  `LightLayer.BLOCK`; `BlockPos.containing(Position)`.
+- Player/effect/attributes: `LivingEntity.{getEffect(Holder),addEffect(MobEffectInstance),kill(ServerLevel),
+  isAlive,getAttribute}`; `MobEffectInstance(Holder,int,int,boolean,boolean)`, `MobEffectInstance.{getDuration,
+  isInfiniteDuration}`; `MobEffects.DARKNESS`; `Attributes.MOVEMENT_SPEED`;
+  `AttributeModifier(Identifier,double,Operation)`, `Operation.ADD_MULTIPLIED_TOTAL`;
+  `AttributeInstance.{getModifier(Identifier),addOrUpdateTransientModifier,removeModifier(Identifier)}`;
+  `Entity.{getEyePosition,getUUID,setSprinting,isSprinting}`; `Player.{isCreative,isSpectator}`.
+- Network: `StreamCodec.composite` на 7 компонентов + `.cast()`; `ByteBufCodecs.{VAR_LONG,VAR_INT,BOOL}`.
+
+### Этап 1.5 — Reference (adapted, not copied)
+Удалённый open-source поиск в этой среде **недоступен** (нет сети; попытки grep.app/GitHub — timeout).
+Поэтому:
+- формула политики — по утверждённому контракту `ROADMAP_STEPS.md` (этап 1.5, строки 42–53);
+- механизм вечной ночи — по **реальному коду Minecraft 26.2**
+  (`net/minecraft/world/clock/ServerClockManager`, `net/minecraft/server/commands/TimeCommand`),
+  прочитанному через javap (явно: `ServerClockManager#tick` читает `GameRules.ADVANCE_TIME`;
+  `/time set` вызывает `setTotalTicks`); `DimensionType#defaultClock` даёт нужный clock;
+- хуки — Fabric API `fabric-lifecycle-events-v1` (`ServerTickEvents.java`, `ServerLifecycleEvents.java`),
+  прочитанные из jar 0.161.0+26.2.
+
 ## TODO
 - **Интерактивная приёмка этапов 1.1/1.2/1.3 — ПОДТВЕРЖДЕНА пользователем** (версия работает «идеально»,
   версия `0.1.0` закреплена). Явно НЕ заявляются как проверенные (в подтверждение не входили и отдельно не
@@ -909,6 +1004,16 @@ thirdperson/firstperson` наследуются из `white_fog:block/flat_stone
   **Иконка `flat_stone` отцентрирована hotfix'ом (см. раздел «Этап 1.4 — hotfix центрирования GUI-иконки
   `flat_stone`»): при приёмке убедиться, что `/give @s white_fog:flat_stone` в инвентаре/хотбаре стоит
   ПО ЦЕНТРУ слота (раньше была смещена вниз на ≈3.25 px) при неизменном размере (`gui.scale 0.625`).**
+- **Этап 1.5 — применён в `src/`; интерактивная приёмка НЕ проводилась.** Проверить вручную:
+  в Overworld всегда ночь, `/time set day` не создаёт дневного тика (следующий тик возвращает 18000);
+  в темноте (block light 0..4, под открытым небом) exposure растёт по +2/сек, под крышей — +1/сек;
+  в ярком свете (>=9) exposure падает и после 600 тиков непрерывного отдыха обнуляется; на `exposure>=50`
+  появляется vanilla Darkness, на `>=75` — замедление ×0.85 и запрет спринта (сервер + клиент);
+  при `exposure>=90` Condition тает, на 0 — обычная смерть; два игрока имеют независимые шкалы;
+  block light от стены не проходит; Nether/End используют только block light (без skylight-гейта);
+  creative/spectator не получают штрафов, возврат в survival продолжает с сохранённого exposure;
+  save/load сохраняет exposure/safe ticks/remainder/Condition; disconnect не даёт offline catch-up;
+  смена измерения/респавн шлют немедленный снимок. Headless smoke доказывает только запуск/регистрацию.
 - Этап 1.x+: фактический расход/восстановление (`fatigue/calories/water/condition`), термоощущение,
   мокрота одежды, дизентерия, сон/работа как механики; реальный HUD по §10 AGENTS.md.
 - Возможные C2S-пакеты действий (регистрировать типы в common init до ресиверов).
@@ -980,6 +1085,21 @@ Bounded runtime probe загрузки/пека item-моделей (свой PI
 ```bat
 tests\item_gui_center\run_client_itemmodel_probe.bat
 :: exit 0 только при status=SUCCESS
+```
+Sandbox self-теста этапа 1.5 (вечная ночь/воздействие тьмы; чистая логика, НЕ runtime; foreground,
+внутренний watchdog 20 c, 89 проверок, UTF-8 лог + `.result` в `logs\`; `exit 124` = TIMEOUT):
+```bat
+tests\eternal_darkness\exposure\run_eternal_darkness_selftest.bat
+:: exit 0 только при status=SUCCESS
+```
+Проверка результата sandbox этапа 1.5 (ожидается `passed=89 failed=0` и `SELFTEST status=SUCCESS`):
+```powershell
+Select-String -Path logs\eternal_darkness_selftest_*.txt -Pattern 'passed=|SELFTEST status' | Select-Object -Last 2
+```
+Проверка инициализации этапа 1.5 в свежих smoke-логах:
+```powershell
+Select-String -Path logs\server_smoke_*.txt -Pattern 'stage 1.5|eternal night' | Select-Object -Last 3
+Select-String -Path logs\client_smoke_*.txt -Pattern 'darkness snapshot receiver' | Select-Object -Last 2
 ```
 Проверка инициализации контента/интеракций этапа 1.4 в свежем smoke-логе:
 ```powershell

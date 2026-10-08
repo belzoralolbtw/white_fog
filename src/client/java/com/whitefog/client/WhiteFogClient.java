@@ -3,12 +3,14 @@ package com.whitefog.client;
 import com.whitefog.WhiteFog;
 import com.whitefog.client.dev.ItemModelSelfCheck;
 import com.whitefog.client.hud.WhiteFogHud;
+import com.whitefog.client.network.DarknessClientNetworking;
 import com.whitefog.client.network.WhiteFogClientNetworking;
 import com.whitefog.client.screen.FlatStoneScreen;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -35,9 +37,13 @@ public class WhiteFogClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		ClientPlayerState playerState = new ClientPlayerState();
+		ClientDarknessState darknessState = new ClientDarknessState();
 
 		// Получатель S2C (тип payload уже зарегистрирован в common initializer).
 		WhiteFogClientNetworking.register(playerState);
+
+		// Этап 1.5: получатель снимков тьмы (тип зарегистрирован в common до ресивера).
+		DarknessClientNetworking.register(darknessState);
 
 		// Заглушка HUD (MC 26.2 Fabric HudElementRegistry).
 		WhiteFogHud.register(playerState);
@@ -46,8 +52,22 @@ public class WhiteFogClient implements ClientModInitializer {
 		FlatStoneScreen.register();
 		WhiteFog.LOGGER.info("White Fog: flat-stone screen registered (stage 1.4)");
 
-		// Сбрасываем кэш при выходе из мира.
-		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> playerState.clear());
+		// Этап 1.5: зеркальный клиентский запрет спринта, пока сервер держит speedRestricted.
+		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			if (client.player == null) {
+				return;
+			}
+			if (darknessState.speedRestricted() && client.player.isSprinting()) {
+				client.player.setSprinting(false);
+			}
+		});
+		WhiteFog.LOGGER.info("White Fog: darkness snapshot receiver registered (stage 1.5)");
+
+		// Сбрасываем кэши при выходе из мира.
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+			playerState.clear();
+			darknessState.clear();
+		});
 
 		// Dev-маркер client init + проверка применения клиентского миксина (для bounded client smoke).
 		if (FabricLoader.getInstance().isDevelopmentEnvironment()) {

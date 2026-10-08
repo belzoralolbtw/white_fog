@@ -3,6 +3,8 @@ package com.whitefog;
 import com.whitefog.breaking.BreakTimerService;
 import com.whitefog.content.WhiteFogContent;
 import com.whitefog.crafting.CraftingLock;
+import com.whitefog.darkness.EternalNightWorld;
+import com.whitefog.darkness.LightExposureService;
 import com.whitefog.network.WhiteFogPayloads;
 import com.whitefog.server.WhiteFogServer;
 import com.whitefog.station.FlatStoneInteractions;
@@ -60,6 +62,12 @@ public class WhiteFog implements ModInitializer {
 		// 7) Серверные interaction'ы станции/камушка и recovery-задача (этап 1.4).
 		FlatStoneInteractions.register();
 		RecoveryService.register();
+
+		// 8) Вечная ночь (этап 1.5): WORLD/LEVEL tick и SERVER_STARTED для clock + ADVANCE_TIME.
+		EternalNightWorld.register();
+
+		// 9) Сервис воздействия тьмы (этап 1.5): тикается из WhiteFogServer#onEndServerTick.
+		LightExposureService.register();
 
 		LOGGER.info("White Fog common initialized (mod id: {})", MOD_ID);
 	}

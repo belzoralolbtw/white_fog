@@ -19,5 +19,7 @@ public final class WhiteFogPayloads {
 	/** Регистрирует клиентские (S2C) типы пакетов РОВНО ОДИН РАЗ. */
 	public static void register() {
 		PayloadTypeRegistry.clientboundPlay().register(PlayerStateSyncPayload.TYPE, PlayerStateSyncPayload.STREAM_CODEC);
+		// Этап 1.5: снимок состояния тьмы. Тип обязан быть зарегистрирован до получателя.
+		PayloadTypeRegistry.clientboundPlay().register(DarknessSnapshotPayload.TYPE, DarknessSnapshotPayload.STREAM_CODEC);
 	}
 }

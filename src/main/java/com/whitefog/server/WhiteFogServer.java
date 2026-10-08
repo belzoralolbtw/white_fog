@@ -3,6 +3,7 @@ package com.whitefog.server;
 import com.whitefog.WhiteFog;
 import com.whitefog.WhiteFogAttachments;
 import com.whitefog.breaking.BreakTimerService;
+import com.whitefog.darkness.LightExposureService;
 import com.whitefog.server.command.WhiteFogDebugCommand;
 import com.whitefog.state.PlayerSurvivalState;
 import com.whitefog.station.RecoveryService;
@@ -91,6 +92,9 @@ public final class WhiteFogServer {
 
 		// Этап 1.4: серверный тик recovery-задач «2 cobblestone -> 1 flat_stone».
 		RecoveryService.tickAll(server);
+
+		// Этап 1.5: серверный тик воздействия тьмы (в единственном END_SERVER_TICK, без второго player tick).
+		LightExposureService.tickAll(server);
 	}
 
 	/** Отключение игрока: сбрасываем сессию разрушения, подсказки и recovery (этапы 1.3/1.4). */
@@ -100,6 +104,7 @@ public final class WhiteFogServer {
 			BreakTimerService.clearPlayer(player);
 			RecoveryService.clear(player);
 			SmallStonePickup.clear(player);
+			LightExposureService.clear(player);
 		} catch (RuntimeException e) {
 			WhiteFog.LOGGER.error("White Fog: failed to clear break session on disconnect", e);
 		}
@@ -112,6 +117,8 @@ public final class WhiteFogServer {
 			PlayerSurvivalState state = WhiteFogAttachments.getOrCreate(player);
 			state.invalidateSync();
 			PlayerStateSyncService.sendNow(server, player, state);
+			// Этап 1.5: немедленный снимок тьмы при входе.
+			LightExposureService.onPlayerJoined(server, player);
 		} catch (RuntimeException e) {
 			WhiteFog.LOGGER.error("White Fog: failed to send initial survival state on join", e);
 		}
@@ -131,6 +138,8 @@ public final class WhiteFogServer {
 			MinecraftServer server = newPlayer.level().getServer();
 			if (server != null) {
 				PlayerStateSyncService.sendNow(server, newPlayer, state);
+				// Этап 1.5: немедленный снимок тьмы после респавна (шкалы перенесены через copyOnDeath).
+				LightExposureService.onPlayerRespawned(server, newPlayer);
 			}
 		} catch (RuntimeException e) {
 			WhiteFog.LOGGER.error("White Fog: failed to resync survival state after respawn", e);
@@ -151,6 +160,8 @@ public final class WhiteFogServer {
 			MinecraftServer server = destination.getServer();
 			if (server != null) {
 				PlayerStateSyncService.sendNow(server, player, state);
+				// Этап 1.5: немедленный снимок тьмы после смены измерения.
+				LightExposureService.onPlayerChangeLevel(server, player);
 			}
 		} catch (RuntimeException e) {
 			WhiteFog.LOGGER.error("White Fog: failed to resync survival state after level change", e);

@@ -3,6 +3,7 @@ package com.whitefog.state;
 import com.mojang.serialization.Codec;
 
 import com.whitefog.WhiteFogConfig;
+import com.whitefog.darkness.DarknessConfig;
 
 import net.minecraft.nbt.CompoundTag;
 
@@ -55,6 +56,14 @@ public final class PlayerSurvivalState {
 	private static final String TAG_GOAL_STARTED = "goal_started";
 	private static final String TAG_REVISION = "revision";
 
+	// --- Ключи NBT этапа 1.5 (воздействие тьмы) ---
+	private static final String TAG_DARKNESS_SCHEMA = "darkness_schema";
+	private static final String TAG_LIGHT_EXPOSURE = "light_exposure";
+	private static final String TAG_SAFE_LIGHT_TICKS = "safe_light_ticks";
+	private static final String TAG_SAMPLE_REMAINDER = "sample_remainder_ticks";
+	private static final String TAG_DARKNESS_CONDITION_MILLI = "darkness_condition_milli";
+	private static final String TAG_DARKNESS_REVISION = "darkness_revision";
+
 	// ------------------------------------------------------------------
 	// Игровое состояние (сохраняется и синхронизируется)
 	// ------------------------------------------------------------------
@@ -97,6 +106,23 @@ public final class PlayerSurvivalState {
 	private long goalStartedAtTick = 0L;
 	/** Ревизия состояния: увеличивается при каждом изменении для детекта синхронизации. */
 	private long revision = 0L;
+
+	// ------------------------------------------------------------------
+	// Этап 1.5 — воздействие тьмы (сохраняется, синхронизируется отдельным снимком)
+	// ------------------------------------------------------------------
+
+	/** Версия схемы полей тьмы (для будущих миграций). */
+	private int darknessSchema = DarknessConfig.DARKNESS_SCHEMA_VERSION;
+	/** Воздействие тьмы 0..100 (0 — вне тьмы, 100 — полная тьма). */
+	private int lightExposure = DarknessConfig.EXPOSURE_MIN;
+	/** Счётчик непрерывного светлого отдыха 0..600. */
+	private int safeLightTicks = DarknessConfig.SAFE_TICKS_MIN;
+	/** Остаток накопления до следующего sample 0..19 (одна секунда = 20 тиков). */
+	private int sampleRemainderTicks = DarknessConfig.SAMPLE_REMAINDER_MIN;
+	/** Condition в тысячных п.п. 0..100000; существующий {@link #condition} отображает это значение. */
+	private int darknessConditionMilli = DarknessConfig.CONDITION_MILLI_MAX;
+	/** Ревизия полей тьмы: увеличивается при изменении для детекта синхронизации снимка тьмы. */
+	private long darknessRevision = 0L;
 
 	// ------------------------------------------------------------------
 	// Служебные поля синхронизации (НЕ сохраняются и НЕ синхронизируются)
@@ -164,6 +190,24 @@ public final class PlayerSurvivalState {
 		state.goalStartedAtTick = Math.max(0L, tag.getLongOr(TAG_GOAL_STARTED, 0L));
 
 		state.revision = Math.max(0L, tag.getLongOr(TAG_REVISION, 0L));
+
+		// --- Этап 1.5: миграция и чтение полей тьмы ---
+		state.darknessSchema = Math.max(1, tag.getIntOr(TAG_DARKNESS_SCHEMA, DarknessConfig.DARKNESS_SCHEMA_VERSION));
+		state.lightExposure = clampI(tag.getIntOr(TAG_LIGHT_EXPOSURE, DarknessConfig.EXPOSURE_MIN),
+				DarknessConfig.EXPOSURE_MIN, DarknessConfig.EXPOSURE_MAX);
+		state.safeLightTicks = clampI(tag.getIntOr(TAG_SAFE_LIGHT_TICKS, DarknessConfig.SAFE_TICKS_MIN),
+				DarknessConfig.SAFE_TICKS_MIN, DarknessConfig.SAFE_TICKS_MAX);
+		state.sampleRemainderTicks = clampI(tag.getIntOr(TAG_SAMPLE_REMAINDER, DarknessConfig.SAMPLE_REMAINDER_MIN),
+				DarknessConfig.SAMPLE_REMAINDER_MIN, DarknessConfig.SAMPLE_REMAINDER_MAX);
+		// Миграция: при отсутствии поля Condition берётся из существующего condition (п.п. -> тысячные п.п.).
+		int migratedConditionMilli = Math.round(clampF(state.condition,
+				WhiteFogConfig.CONDITION_MIN, WhiteFogConfig.CONDITION_MAX) * 1000.0F);
+		state.darknessConditionMilli = clampI(
+				tag.getIntOr(TAG_DARKNESS_CONDITION_MILLI, migratedConditionMilli),
+				DarknessConfig.CONDITION_MILLI_MIN, DarknessConfig.CONDITION_MILLI_MAX);
+		// Существующий Condition отображает результат: милли — источник истины.
+		state.condition = state.darknessConditionMilli / 1000.0F;
+		state.darknessRevision = Math.max(0L, tag.getLongOr(TAG_DARKNESS_REVISION, 0L));
 		// Служебные поля синхронизации всегда начинают с чистого листа.
 		state.invalidateSync();
 		state.normalize();
@@ -202,6 +246,14 @@ public final class PlayerSurvivalState {
 		tag.putLong(TAG_GOAL_STARTED, this.goalStartedAtTick);
 
 		tag.putLong(TAG_REVISION, this.revision);
+
+		// --- Этап 1.5: поля тьмы ---
+		tag.putInt(TAG_DARKNESS_SCHEMA, this.darknessSchema);
+		tag.putInt(TAG_LIGHT_EXPOSURE, this.lightExposure);
+		tag.putInt(TAG_SAFE_LIGHT_TICKS, this.safeLightTicks);
+		tag.putInt(TAG_SAMPLE_REMAINDER, this.sampleRemainderTicks);
+		tag.putInt(TAG_DARKNESS_CONDITION_MILLI, this.darknessConditionMilli);
+		tag.putLong(TAG_DARKNESS_REVISION, this.darknessRevision);
 		return tag;
 	}
 
@@ -237,9 +289,36 @@ public final class PlayerSurvivalState {
 		if (this.revision < 0L) {
 			this.revision = 0L;
 		}
+
+		// --- Этап 1.5: нормализация полей тьмы ---
+		if (this.darknessSchema < 1) {
+			this.darknessSchema = DarknessConfig.DARKNESS_SCHEMA_VERSION;
+		}
+		this.lightExposure = clampI(this.lightExposure, DarknessConfig.EXPOSURE_MIN, DarknessConfig.EXPOSURE_MAX);
+		this.safeLightTicks = clampI(this.safeLightTicks, DarknessConfig.SAFE_TICKS_MIN, DarknessConfig.SAFE_TICKS_MAX);
+		this.sampleRemainderTicks = clampI(this.sampleRemainderTicks,
+				DarknessConfig.SAMPLE_REMAINDER_MIN, DarknessConfig.SAMPLE_REMAINDER_MAX);
+		this.darknessConditionMilli = clampI(this.darknessConditionMilli,
+				DarknessConfig.CONDITION_MILLI_MIN, DarknessConfig.CONDITION_MILLI_MAX);
+		// Condition всегда отображает милли-значение (единый источник истины).
+		this.condition = this.darknessConditionMilli / 1000.0F;
+		if (this.darknessRevision < 0L) {
+			this.darknessRevision = 0L;
+		}
 	}
 
 	private static float clampF(float value, float min, float max) {
+		if (value < min) {
+			return min;
+		}
+		if (value > max) {
+			return max;
+		}
+		return value;
+	}
+
+	/** Зажимает целое в границы. */
+	private static int clampI(int value, int min, int max) {
 		if (value < min) {
 			return min;
 		}
@@ -263,6 +342,11 @@ public final class PlayerSurvivalState {
 
 	private void bumpRevision() {
 		this.revision++;
+	}
+
+	/** Увеличивает ревизию полей тьмы (для детекта синхронизации снимка тьмы). */
+	private void bumpDarknessRevision() {
+		this.darknessRevision++;
 	}
 
 	// ------------------------------------------------------------------
@@ -363,7 +447,11 @@ public final class PlayerSurvivalState {
 
 	public void setCondition(float value) {
 		this.condition = clampF(value, WhiteFogConfig.CONDITION_MIN, WhiteFogConfig.CONDITION_MAX);
+		// Синхронизируем точное значение тыс. п.п., чтобы Condition не расходился с механикой тьмы.
+		this.darknessConditionMilli = clampI(Math.round(this.condition * 1000.0F),
+				DarknessConfig.CONDITION_MILLI_MIN, DarknessConfig.CONDITION_MILLI_MAX);
 		bumpRevision();
+		bumpDarknessRevision();
 	}
 
 	/** Мокрота указанного слота одежды, 0–100. */
@@ -497,6 +585,81 @@ public final class PlayerSurvivalState {
 	}
 
 	// ------------------------------------------------------------------
+	// Этап 1.5 — геттеры/сеттеры полей тьмы
+	// ------------------------------------------------------------------
+
+	/** Версия схемы полей тьмы. */
+	public int getDarknessSchema() {
+		return this.darknessSchema;
+	}
+
+	/** Воздействие тьмы 0..100. */
+	public int getLightExposure() {
+		return this.lightExposure;
+	}
+
+	/** Задаёт exposure; ревизия тьмы растёт только при фактическом изменении. */
+	public void setLightExposure(int value) {
+		int clamped = clampI(value, DarknessConfig.EXPOSURE_MIN, DarknessConfig.EXPOSURE_MAX);
+		if (clamped == this.lightExposure) {
+			return;
+		}
+		this.lightExposure = clamped;
+		bumpDarknessRevision();
+	}
+
+	/** Счётчик непрерывного светлого отдыха 0..600. */
+	public int getSafeLightTicks() {
+		return this.safeLightTicks;
+	}
+
+	/** Задаёт счётчик отдыха; ревизия тьмы растёт только при фактическом изменении. */
+	public void setSafeLightTicks(int value) {
+		int clamped = clampI(value, DarknessConfig.SAFE_TICKS_MIN, DarknessConfig.SAFE_TICKS_MAX);
+		if (clamped == this.safeLightTicks) {
+			return;
+		}
+		this.safeLightTicks = clamped;
+		bumpDarknessRevision();
+	}
+
+	/** Остаток накопления до следующего sample 0..19 (служебное, ревизию не меняет). */
+	public int getSampleRemainderTicks() {
+		return this.sampleRemainderTicks;
+	}
+
+	/** Задаёт остаток накопления; не увеличивает ни одну ревизию (иначе был бы лишний снимок каждый тик). */
+	public void setSampleRemainderTicks(int value) {
+		this.sampleRemainderTicks = clampI(value,
+				DarknessConfig.SAMPLE_REMAINDER_MIN, DarknessConfig.SAMPLE_REMAINDER_MAX);
+	}
+
+	/** Condition в тысячных п.п. 0..100000. */
+	public int getDarknessConditionMilli() {
+		return this.darknessConditionMilli;
+	}
+
+	/**
+	 * Задаёт Condition в тысячных п.п. Обновляет и {@link #getCondition()} (для базового HUD),
+	 * и ревизию тьмы. Ревизии растут только при фактическом изменении.
+	 */
+	public void setDarknessConditionMilli(int value) {
+		int clamped = clampI(value, DarknessConfig.CONDITION_MILLI_MIN, DarknessConfig.CONDITION_MILLI_MAX);
+		if (clamped == this.darknessConditionMilli) {
+			return;
+		}
+		this.darknessConditionMilli = clamped;
+		this.condition = clamped / 1000.0F;
+		bumpRevision();
+		bumpDarknessRevision();
+	}
+
+	/** Ревизия полей тьмы. */
+	public long getDarknessRevision() {
+		return this.darknessRevision;
+	}
+
+	// ------------------------------------------------------------------
 	// Отладочное представление (без изменения данных)
 	// ------------------------------------------------------------------
 
@@ -533,6 +696,13 @@ public final class PlayerSurvivalState {
 		sb.append(" goal=").append(this.activeGoal.isEmpty()
 				? "none"
 				: ("'" + this.activeGoal + "' startedAt=" + this.goalStartedAtTick));
+		sb.append(" darkness=[schema=").append(this.darknessSchema)
+				.append(" exposure=").append(this.lightExposure)
+				.append(" safeTicks=").append(this.safeLightTicks)
+				.append(" remainder=").append(this.sampleRemainderTicks)
+				.append(" conditionMilli=").append(this.darknessConditionMilli)
+				.append(" darknessRevision=").append(this.darknessRevision)
+				.append(']');
 		sb.append(" revision=").append(this.revision);
 		return sb.toString();
 	}
