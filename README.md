@@ -6,12 +6,15 @@ A Minecraft **26.2** **Fabric** mod that builds a survival foundation on a
 
 ## Status / roadmap
 
-- **Upper-level roadmap stages 1.1–1.6 are complete** and were manually verified in-game by the user across the
-  main mechanics.
+- **Upper-level roadmap stages 1.1–1.7 are implemented.** Stages 1.1–1.6 and the post-1.6 bugfix/stabilization work
+  were manually verified in-game by the user across the main mechanics.
 - All later work (fading light sources, the Darkness pulse fix, dynamic light, HUD, the source menu and UI) shipped
   as **post-1.6 bugfix/stabilization, not as separate roadmap stages 1.7/1.8/1.9/1.10/1.11**.
-- **Roadmap stage 1.7 «Закрытое укрытие и адаптер света» (shelter detector) is NOT started** — see
-  `ROADMAP_STEPS.md`.
+- **Roadmap stage 1.7 «Закрытое укрытие и адаптер света» (shelter detector) is implemented** in
+  `darkness/shelter/` and wired into `LightExposureService.isSheltered(...)`. Its **automatic verification**
+  (sandbox `tests/eternal_darkness/shelter/`, build and bounded server/client smokes) passes; the **live in-game
+  acceptance is still pending** (cave room, built house, stationary player / another player's door change, chunk
+  boundary and two players).
 
 ## Requirements
 
@@ -43,7 +46,7 @@ Run the client (requires manual stop; do not launch bare):
 gradlew.bat runClient --no-daemon --console=plain
 ```
 
-## Implemented (roadmap stages 1.1–1.6 + post-1.6 bugfixes)
+## Implemented (roadmap stages 1.1–1.7 + post-1.6 bugfixes)
 
 - **Stage 1.1** — persistent, server-authoritative player survival state
   (Fabric Data Attachment API v1, NBT-backed, `copyOnDeath`) with an S2C
@@ -103,6 +106,28 @@ gradlew.bat runClient --no-daemon --console=plain
   empty, just-placed source can be refuelled or re-lit; being unlit it emits no
   block light and therefore does not affect darkness exposure. Manually
   verified in-game (see Status / roadmap).
+- **Stage 1.7** — closed-shelter detector. A read-only server-side detector
+  (`darkness/shelter/`: `Voxels`, `CollisionMasks`, `ShelterDetector`,
+  `ShelterSnapshot`, `ShelterCache`, `ShelterProvider`) decides whether the
+  player stands inside a closed room, using a bounded 6-face FIFO voxel fill
+  (fixed order DOWN/UP/NORTH/SOUTH/WEST/EAST), collision-based sealing (full
+  collision volumes block; closed `DoorBlock`/`TrapDoorBlock` masks come from the
+  actual collision-union boundary coverage, never block names; OPEN is permeable)
+  and per-column floor/roof checks. Limits: max 125 interior cells inclusive,
+  bbox 9×5×9, min 18 cells plus a clear height-two column, 20-tick runtime cache;
+  unloaded/read-error returns `false` fail-closed. It is wired in as
+  `LightExposureService.isSheltered(...)` **before** the unchanged
+  `LightExposurePolicy`, so:
+  - inside a closed shelter, staying in darkness still accumulates exposure
+    (**+1/sample** for block light `0..4`),
+  - open sky **outside** a shelter adds the extra **+1**,
+  - bright light (**`>=9`**) drains exposure by **−2** as before.
+  Shelter never creates light, never heals and never blocks a mob path; it only
+  removes/reduces the open-sky penalty, so it slows but does not stop dark
+  accumulation. Includes a read-only description of a `DDA` station scan (first
+  non-air voxel, not a precise vanilla shape hit) for diagnostics. Automatic
+  verification only (sandbox `tests/eternal_darkness/shelter/`, build, smokes);
+  live in-game acceptance is pending.
 - **Post-1.6: source menu, HUD layout fix and portable light (bugfix/stabilization,
   not a roadmap stage).**
   Right-clicking a managed light source (`torch`/`wall_torch`, `soul_torch`/
@@ -162,14 +187,29 @@ gradlew.bat runClient --no-daemon --console=plain
   outside the mod gate and `BLINDNESS` are preserved, and the server formula /
   real block light are unchanged.
   Manually verified in-game (see Status / roadmap).
+- **Post-1.6: drop/place fuel round-trip, diagnostics and dev command
+  (bugfix/stabilization, not a roadmap stage).**
+  - `white_fog:light_fuel` `(remaining, lit)` is preserved across the whole
+    block↔item round-trip by the shared `LightFuelRoundTrip` used by the
+    production placement and drop paths: breaking a source yields exactly one
+    item carrying the same `remaining` **and** `lit`, and placing it back
+    continues from that state (no reset, no doubling). A charged `count>1` stack
+    is refused without splitting.
+  - `/whitefog debug [player]` (dev-only, read-only) prints a structured snapshot
+    (Russian-friendly): shelter validity/reason, exposure and current/last
+    sample, effective light, Darkness state, hands/offhand light, the nearest
+    source, and break/recovery/light job and lifecycle state. Event-only
+    failures and placement/drop/state transitions are additionally emitted as
+    structured `WHITEFOG_LIGHT_*` markers; debug lines also go to INFO as
+    `WHITEFOG_DEBUG`. Diagnostics never create exposure sessions or shelter-cache
+    entries and do not change gameplay policy.
+  - Automatic verification: sandboxes (fuel codec round-trip, light round-trip,
+    darkness light fix, shelter), build and bounded server/client smokes pass.
+    Live in-game acceptance of the diagnostic command and the whole action chain
+    is still pending.
 
 ## Not yet implemented
 
-- **Roadmap stage 1.7 «Закрытое укрытие и адаптер света» (shelter detector)** is
-  **not started**: there is no real `darkness/shelter/` detector and
-  `LightExposureService.isSheltered(...)` still returns `false`, so the "open sky
-  adds +1 exposure inside a roofed room" rule currently depends on `canSeeSky`
-  alone. This is the single remaining ticket in `ROADMAP_STEPS.md`.
 - The mod pickaxes `white_fog:bronze_pickaxe` / `white_fog:iron_pickaxe` /
   `white_fog:steel_pickaxe` are **not registered yet** (planned for stage 6.4).
   Until then mining hard blocks and hard stations with a mod pickaxe is
@@ -207,6 +247,18 @@ gradlew.bat runClient --no-daemon --console=plain
   limited to lit+count==1, HUD strings without raw ticks/light level and constant
   no-pulse fog outputs), the `Ночь · HH:MM` clock formatting and the bounded
   panel layout from 60 px to 320 px (not a runtime proof; 459 checks).
+- `tests\eternal_darkness\shelter\run_shelter_selftest.bat` — logic-only sandbox
+  for the stage 1.7 closed-shelter detector (production pure logic): closed/intact
+  rooms, closed vs open door, roof hole, water in the start cell, floor hole, slab
+  gap, 125/126-cell and 9×10 bbox limits, unloaded face and an empty cache after a
+  dimension change; plus seven production cache regressions (OPEN_VOLUME/read
+  errors/UNLOADED, unchanged cache). `run_api_evidence.bat` records the `javap`
+  signatures and local jar hashes. Not a runtime proof; live acceptance pending.
+- `tests\darkness_visual\run_darkness_visual_selftest.bat` and
+  `tests\portable_light_dynamic\run_portable_light_dynamic_selftest.bat` —
+  logic-only sandboxes for the client visual adapter (no-pulse envelope) and the
+  dynamic-light root causes (`RenderSectionRegion` gate, falloff, entity light,
+  section radius). Not a runtime proof.
 - `scripts\server_smoke.bat` / `scripts\client_smoke.bat` — bounded smoke runs
   (dedicated server / client) that terminate only their own process tree.
 

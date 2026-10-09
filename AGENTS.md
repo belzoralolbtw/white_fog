@@ -53,9 +53,11 @@
 - **Roadmap status (important):** the upper-level roadmap stages **1.1–1.6 are complete and stage 1.7 is implemented
   (automatic verification recorded below; live-room acceptance still pending)**; all later work on fading
   sources, the Darkness pulse, dynamic light, HUD, menu and UI shipped as **post-1.6 bugfix/stabilization, not as
-  separate roadmap stages 1.7/1.8/1.9/1.10/1.11**. The current `ROADMAP_STEPS.md` holds the single remaining ticket
-  «Этап 1.7: Закрытое укрытие и адаптер света» (shelter detector), now implemented in `darkness/shelter/` and
-  connected through `LightExposureService.isSheltered(...)`. Do not confuse that
+  separate roadmap stages 1.7/1.8/1.9/1.10/1.11**. The single ticket «Этап 1.7: Закрытое укрытие и адаптер света»
+  (shelter detector) is implemented in `darkness/shelter/` and
+  connected through `LightExposureService.isSheltered(...)`. `ROADMAP_STEPS.md` is kept **physically in the working
+  tree but removed from the Git repository/GitHub** (`git rm --cached`, ignored in `.gitignore`), so it is a
+  local-only planning file. Do not confuse that
   ticket's label "1.7" with the source-menu / portable-light work, which was a post-1.6 bugfix, not a roadmap stage.
 - **Stage 1.7 integration (2026-10-09, approved main, committed locally; not pushed):** production pure classes are tested
   directly by `tests/eternal_darkness/shelter/runner.ps1`; the original 216 assertions plus five shape-neighbor
@@ -116,7 +118,9 @@
   `75a0999` (`docs: align roadmap stage status`) → `9c28fba` (`docs: update project memory after roadmap sync`) →
   `af17f8d` (`chore: replace CC0 with proprietary license`); all of these are already on `origin/master`.
   The stage-1.7 + diagnostics/light-round-trip work is a **local commit** on top
-  (`feat: complete shelter and light diagnostics stage 1.7`), **not pushed**. Never push future work without
+  (`feat: complete shelter and light diagnostics stage 1.7`), **not pushed**. On top of that, a local docs commit
+  `docs: publish stage 1.7 documentation` updates `README.md`/`PLAYER_GUIDE.md`/`AGENTS.md` and removes
+  `ROADMAP_STEPS.md` from the index (file kept on disk), **also not pushed**. Never push future work without
   explicit user approval.
 
 ## Structure
@@ -177,7 +181,8 @@ tests/                                 # independent sandboxes (NOT part of buil
                                        #   item_gui_center/ eternal_darkness/{exposure,light,portable_light,shelter}/ darkness_visual/
                                        #   darkness_light_fix/ portable_light_dynamic/
 scripts/build.bat|server_smoke.bat|client_smoke.bat
-README.md  ROADMAP_STEPS.md  PLAYER_GUIDE.md   # compact player guide (not a checklist)
+README.md  PLAYER_GUIDE.md   # README = project/roadmap; PLAYER_GUIDE = compact player guide (not a checklist)
+ROADMAP_STEPS.md         # local-only planning file: kept on disk, REMOVED from the repo/GitHub (.gitignore)
 ```
 
 `common` (`src/main`) must stay free of `net.minecraft.client.*`; verify after a build by scanning
