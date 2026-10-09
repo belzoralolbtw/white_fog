@@ -241,16 +241,19 @@
   `WHITEFOG_HUD_SELFTEST widgets=5 registered=true status=SUCCESS`; common class scan clean. Automatic evidence only;
   no live pixel/visual acceptance (real Cyrillic widths, bar/panel overlap, action-bar text, goal wrapping at GUI
   scales 1..4 remain unproven).
-- **Git:** repo `https://github.com/belzoralolbtw/white_fog` (PUBLIC), `origin/master`. Current chain:
-  `ff5c05a` (`feat: add fading light sources and portable lighting`, post-1.6 work) → `12db179` / `439f5a5`
-  (`docs: update project memory after release`) → `3aaac84` (`docs: record manual gameplay acceptance`) →
-  `75a0999` (`docs: align roadmap stage status`) → `9c28fba` (`docs: update project memory after roadmap sync`) →
-  `af17f8d` (`chore: replace CC0 with proprietary license`); all of these are already on `origin/master`.
-  The stage-1.7 + diagnostics/light-round-trip work is a **local commit** on top
-  (`feat: complete shelter and light diagnostics stage 1.7`), **not pushed**. On top of that, a local docs commit
-  `docs: publish stage 1.7 documentation` updates `README.md`/`PLAYER_GUIDE.md`/`AGENTS.md` and removes
-  `ROADMAP_STEPS.md` from the index (file kept on disk), **also not pushed**. Never push future work without
-  explicit user approval.
+- **Git (current publication state, 2026-10-09):** repo `https://github.com/belzoralolbtw/white_fog` (PUBLIC),
+  `origin/master`; `origin/master == local HEAD`, working tree clean. **Everything through stage 1.7 + 1.8 + 1.9 and
+  the HUD work is now published.** Current base commit
+  **`aa2ff8933adfee30b11d7d4c471652225bc2cdb8`** (`feat: add dark ambient spawning and compact HUD`). Full chain on
+  `origin/master`: `ff5c05a` (`feat: add fading light sources and portable lighting`, post-1.6 work) →
+  `12db179`/`439f5a5` (`docs: update project memory after release`) → `3aaac84` (`docs: record manual gameplay
+  acceptance`) → `75a0999` (`docs: align roadmap stage status`) → `9c28fba` (`docs: update project memory after
+  roadmap sync`) → `af17f8d` (`chore: replace CC0 with proprietary license`) → `f48a6eb` (`feat: complete shelter and
+  light diagnostics stage 1.7`) → `bdb610d` (`docs: publish stage 1.7 documentation`) → **`aa2ff89`** (`feat: add dark
+  ambient spawning and compact HUD`: stage 1.8 + 1.9 + HUD). The "committed locally; not pushed" /
+  "local; not committed/pushed" labels in the historical bullets above record the state at the time and are now
+  superseded by this pushed chain. `ROADMAP_STEPS.md` stays removed from the index (file on disk, `.gitignore`d).
+  Never push future work without explicit user approval.
 
 ## Structure
 
@@ -403,13 +406,18 @@ ROADMAP_STEPS.md         # local-only planning file: kept on disk, REMOVED from 
   Campfire opens the menu with an empty hand only (eating/shovel/flint stay vanilla). All actions re-validate
   rights/range/LOS/source UUID/revision server-side. `LightMenuLayout` sizes each button as
   `labelWidth + 2*BUTTON_H_PAD` in both wide and compact modes, so labels are never tighter than the button.
-- **HUD (1.6 + post-1.6).** `G` toggles a bounded, content-sized Work Panel (named constants, text clamped so nothing
-  overflows on narrow windows): nearest source, human time-to-empty `Осталось: X мин Y сек`, offhand portable light
-  `В руке: Факел`/`Факел душ`, and a custom eternal-night clock `Ночь · HH:MM` from the world clock (no misleading
-  vanilla day). In a later post-1.6 pass the source line is built by pure `LightPanelFormat.hudSourceLine/hudFuelLine`:
+- **HUD (1.6 + post-1.6).** The bounded, content-sized Work Panel (named constants, text clamped so nothing
+  overflows on narrow windows) is **permanently visible** during normal gameplay — it is **not** toggled by `G`; the
+  pure `DarkHudLayout.workPanelAlwaysVisible()` policy shows it whenever the gameplay HUD is shown. It contains:
+  nearest source, human time-to-empty `Осталось: X мин Y сек`, offhand portable light
+  `В руке: Факел`/`Факел душ`, a custom eternal-night clock `Ночь · HH:MM` from the world clock (no misleading
+  vanilla day), and (newest pass) a thin `Тьма: E%` darkness/exposure bar. In a later post-1.6 pass the source line
+  is built by pure `LightPanelFormat.hudSourceLine/hudFuelLine`:
   placed block wins («Источник: Факел · горит»); otherwise a valid burning offhand light is shown as the source
   («Источник: в руке — Факел» + its `(remaining)` in «Осталось:»); empty/unlit/corrupt offhand keeps
-  «Источник: нет рядом». This is display only — `G`'s C2S refuel still targets a placed block only.
+  «Источник: нет рядом». `G` remains a **separate** quick refuel action (`consumeClick()` + C2S
+  `white_fog:light_refuel`) that never controls panel visibility, and this refuel is display-independent — it still
+  targets a placed block only.
 - **Portable light (post-1.6).** A charged `torch`/`soul_torch` (`lit && remaining>0 && count==1`) in the
   offhand gives client-side dynamic light (local player only, emission 14/10, 1-per-block falloff) through **three**
   hooks: `LightCoordsUtil.BrightnessGetter` (block-mesh light), `EntityRenderer.getBlockLightLevel` (hand/player
@@ -443,27 +451,27 @@ ROADMAP_STEPS.md         # local-only planning file: kept on disk, REMOVED from 
   log `WHITEFOG_DARK_SPAWN ...` on each actual spawn; no per-tick spam. Natural spawning/loot/combat and the 1.3
   break protections are untouched; existing light stays unsafe (it removes the `light<=4` candidate, not the mobs).
 - **Compact light/goal HUD (1.9).** One root HUD element (`white_fog:root_hud`, `WhiteFogHud`) is registered via Fabric
-  `HudElementRegistry.addLast`; the old `WhiteFogHud` stub and `LightWorkPanelHud` are consolidated into it (the `G`
-  work panel is now a child widget, not a second registration). The extended single `DarknessSnapshotPayload`
+  `HudElementRegistry.addLast`; the old `WhiteFogHud` stub and `LightWorkPanelHud` are consolidated into it (the Work
+  Panel is a child widget, not a second registration). The extended single `DarknessSnapshotPayload`
   (`revision, light, exposure, conditionMilli, shelter, sourceItemId?, sourceRemainingTicks, goalId, postCount,
   finalState, finalRemainingTicks, finalFuelTicks, waveRemainingTicks`; null source ⇒ `sourceRemainingTicks = -1`)
   is sent changed no more often than 5 ticks, plus a 100-tick heartbeat, plus immediately on join/respawn/dimension.
   The client `ClientDarknessState` accepts `revision >= last` (equal = heartbeat) via the pure
-  `SnapshotRevisionGate` and clears revision+fields on disconnect. Status panel (bottom-left, x=4, bottom edge
-  `height-44`; hidden while chat is open): `Свет: L/15`, thin exposure bar + `Тьма: E%`, `Укрытие: да/нет`, source
-  row resolved via pure `HudSourceDisplay` — nearby placed source wins (`Топливо: N с`, ceil(ticks/20)), else a
-  valid burning offhand shows `В руке: <Факел|Факел душ> · N с`, else `Источник не найден` — always with a real
-  `GuiGraphicsExtractor.item` icon. Goal
-  panel (top-right, max 120 real px, ≤2 wrapped lines + ellipsis, hidden <320×180) uses localized
-  `goal.white_fog.*` keys, never raw IDs. Warning under the crosshair at `height/2+18` only at exposure≥75
-  (`Найди свет`) / ≥90 (`Тьма истощает тебя`) with a 40-tick visual cooldown on reason change. All widgets are
-  hidden until a snapshot exists (no fabricated zeros); whole custom HUD hidden on F1 (`Hud.isHidden()`), any open
-  `Screen`, spectator, death. `DarkGoalService` holds five exact `white_fog:*` IDs, monotonic completed flags and
-  active goal (first incomplete; marking a later goal early persists but does not skip ahead); flags live in
-  `PlayerSurvivalState` (absent=false, `copyOnDeath`). **Display mode (2026-10-09 user request):** the compact
-  status/goal/warning are constructed but never render; the Work Panel is permanent and its visibility is decided by
-  the pure `DarkHudLayout` policy (`shouldShowCompactStageHud()` false, `workPanelAlwaysVisible()` true), so `G` no
-  longer gates the panel and remains only the separate refuel action.
+  `SnapshotRevisionGate` and clears revision+fields on disconnect. `DarkGoalService` holds five exact `white_fog:*`
+  IDs, monotonic completed flags and active goal (first incomplete; marking a later goal early persists but does not
+  skip ahead); flags live in `PlayerSurvivalState` (absent=false, `copyOnDeath`). **Display mode (2026-10-09 user
+  request, newest pass):** the compact status panel (`LightWidget`+`ExposureWidget`, bottom-left) is constructed but
+  **never renders** (`DarkHudLayout.shouldShowCompactStageHud()` false); the **Work Panel is permanently visible**
+  (`DarkHudLayout.workPanelAlwaysVisible()` true) as the only bottom-left panel and now includes the thin `Тьма: E%`
+  darkness/exposure bar (server `DarknessSnapshotPayload.exposure` via `ClientDarknessState.lightExposure()`, shared
+  `DarknessBar`/`DarkHudLayout` geometry); the `Текущее задание` goal panel is **active in the top-right** via
+  `DarkHudLayout.stageGoalVisible(...)` using localized `goal.white_fog.*` keys (never raw IDs), max 120 real px,
+  ≤2 wrapped lines + ellipsis, hidden <320×180; warnings are **vanilla action-bar messages**, not a HUD window —
+  `WarningWidget` is constructed but never rendered, while the pure `DarkWarningPolicy` (≥75
+  `hud.white_fog.warning.find_light` / ≥90 `.drain`, 40-tick cooldown on reason change) calls
+  `LocalPlayer.sendOverlayMessage(Component)`. The whole custom HUD stays hidden on F1 (`Hud.isHidden()`), any open
+  `Screen`, spectator and death (no fabricated zeros before a snapshot); `G` remains only the **separate**
+  `consumeClick()` + C2S `white_fog:light_refuel` action and does not control panel visibility.
 
 ## TODO / known gaps
 
