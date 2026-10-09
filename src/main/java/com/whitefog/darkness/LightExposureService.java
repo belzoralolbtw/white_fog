@@ -3,6 +3,7 @@ package com.whitefog.darkness;
 import com.whitefog.WhiteFog;
 import com.whitefog.WhiteFogAttachments;
 import com.whitefog.darkness.light.PortableLightService;
+import com.whitefog.darkness.shelter.ShelterProvider;
 import com.whitefog.network.DarknessSnapshotPayload;
 import com.whitefog.state.PlayerSurvivalState;
 
@@ -42,8 +43,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * поэтому источником политики служит утверждённый контракт ROADMAP_STEPS.md (этап 1.5).</p>
  */
 public final class LightExposureService {
+	public record Diagnostic(boolean sampled, long sampleTick, BlockPos sampleEye, int vanillaBlockLight,
+			int effectiveBlockLight, int portableEmission, boolean canSeeSky, int exposureBefore,
+			int exposureAfter, int exposureDelta, boolean shelter, boolean speedRestricted) { }
 	/** Runtime-сессии (не сохраняются): guard повторного tick, последний sample, состояние синхронизации. */
 	private static final Map<UUID, Session> SESSIONS = new ConcurrentHashMap<>();
+    private static final Map<UUID, String> LAST_THRESHOLD_STATE = new ConcurrentHashMap<>();
 
 	private static boolean registered = false;
 
@@ -93,6 +98,9 @@ public final class LightExposureService {
 
 		// Мёртвый игрок: sample не выполняется; runtime-modifier снимается.
 		if (!player.isAlive()) {
+			ShelterProvider.clear(player.getUUID());
+			session.lastShelter = false;
+			session.hasSampled = false;
 			removeSpeedModifier(player);
 			session.lastSpeedRestricted = false;
 			maybeSync(server, player, state, session);
@@ -131,6 +139,9 @@ public final class LightExposureService {
 		BlockPos eye = BlockPos.containing(player.getEyePosition());
 		// Если клетка глаза не загружена — sample пропускается без догоняющего расчёта.
 		if (!player.level().isLoaded(eye)) {
+			ShelterProvider.clear(player.getUUID());
+			session.lastShelter = false;
+			session.hasSampled = false;
 			return;
 		}
 
@@ -138,10 +149,12 @@ public final class LightExposureService {
 		// Адаптер переносного света (этап поверх 1.6): вход exposure поднимается до
 		// max(vanilla blockLight, portable emission) ДО неизменной формулы политики.
 		// Это НЕ радиус и НЕ сложение.
+		int portableEmission = PortableLightService.portableEmission(player);
 		int effectiveBlockLight = PortableLightService.effectiveBlockLight(player, blockLight);
 		boolean canSeeSky = player.level().canSeeSky(eye);
-		boolean shelter = isSheltered(player); // до готовности shelter-сервиса адаптер возвращает false
+		boolean shelter = isSheltered(player);
 		boolean victorySafe = isVictorySafe(player); // до готовности победы возвращает false
+		int previousExposure = state.getLightExposure();
 
 		LightExposurePolicy.Input input = new LightExposurePolicy.Input(
 				effectiveBlockLight, canSeeSky, shelter, true, false, victorySafe);
@@ -158,10 +171,29 @@ public final class LightExposureService {
 			state.setDarknessConditionMilli(result.conditionMilli());
 		}
 
+		session.lastVanillaBlockLight = blockLight;
+		session.lastEffectiveBlockLight = effectiveBlockLight;
+		session.lastPortableEmission = portableEmission;
 		session.lastBlockLight = effectiveBlockLight;
+		session.lastSampleEye = eye;
+		session.previousExposure = previousExposure;
+		session.exposureAfter = result.exposure();
+		session.exposureDelta = result.exposure() - previousExposure;
+		session.lastSampleTick = server.getTickCount();
+		session.lastCanSeeSky = canSeeSky;
 		session.lastShelter = shelter;
 		session.lastSpeedRestricted = result.speedRestricted();
 		session.hasSampled = true;
+		String thresholdState = (result.exposure() >= DarknessConfig.DARK_EFFECT_EXPOSURE_THRESHOLD) + ":"
+				+ (result.exposure() >= DarknessConfig.SPEED_RESTRICT_EXPOSURE_THRESHOLD) + ":"
+				+ (result.exposure() >= DarknessConfig.CONDITION_DAMAGE_EXPOSURE_THRESHOLD);
+		String previousThreshold = LAST_THRESHOLD_STATE.put(player.getUUID(), thresholdState);
+		if (!thresholdState.equals(previousThreshold)) WhiteFog.LOGGER.info(
+				"WHITEFOG_EXPOSURE_THRESHOLDS player={} dimension={} pos={} exposure={} darkness={} slow={} conditionDrain={}",
+				player.getStringUUID(), player.level().dimension().identifier(), player.blockPosition(), result.exposure(),
+				result.exposure() >= DarknessConfig.DARK_EFFECT_EXPOSURE_THRESHOLD,
+				result.exposure() >= DarknessConfig.SPEED_RESTRICT_EXPOSURE_THRESHOLD,
+				result.exposure() >= DarknessConfig.CONDITION_DAMAGE_EXPOSURE_THRESHOLD);
 
 		refreshDarknessEffect(player, result.exposure());
 		applySpeedRestriction(player, result.speedRestricted());
@@ -175,12 +207,9 @@ public final class LightExposureService {
 		}
 	}
 
-	/**
-	 * Адаптер укрытия. До готовности shelter-сервиса всегда {@code false}; будущий сервис
-	 * заменит поставщика этого булева значения, не меняя формулу тьмы.
-	 */
+	/** Loaded-only stage 1.7 adapter, evaluated before the unchanged exposure policy. */
 	private static boolean isSheltered(ServerPlayer player) {
-		return false;
+		return ShelterProvider.isSheltered(player);
 	}
 
 	/** Адаптер победы. До готовности механики победы всегда {@code false}. */
@@ -334,6 +363,7 @@ public final class LightExposureService {
 	/** Вход игрока: свежая runtime-сессия + немедленный снимок. */
 	public static void onPlayerJoined(MinecraftServer server, ServerPlayer player) {
 		SESSIONS.remove(player.getUUID());
+		LAST_THRESHOLD_STATE.remove(player.getUUID());
 		sendNow(server, player);
 	}
 
@@ -343,8 +373,9 @@ public final class LightExposureService {
 		sendNow(server, player);
 	}
 
-	/** Смена измерения: сущность та же, runtime сохраняется, но клиенту нужен свежий снимок. */
+	/** Смена измерения: старый sample не является состоянием нового измерения. */
 	public static void onPlayerChangeLevel(MinecraftServer server, ServerPlayer player) {
+		SESSIONS.remove(player.getUUID());
 		sendNow(server, player);
 	}
 
@@ -376,5 +407,26 @@ public final class LightExposureService {
 		private int lastSentBlockLight = 0;
 		private boolean lastSentShelter = false;
 		private boolean lastSentSpeedRestricted = false;
+		private int lastVanillaBlockLight = 0;
+		private int lastEffectiveBlockLight = 0;
+		private int lastPortableEmission = 0;
+		private int previousExposure = 0;
+		private int exposureAfter = 0;
+		private int exposureDelta = 0;
+		private long lastSampleTick = Long.MIN_VALUE;
+		private boolean lastCanSeeSky = false;
+		private BlockPos lastSampleEye = null;
+	}
+
+	/** Read-only runtime snapshot for the dev diagnostic command. */
+	public static Diagnostic diagnostics(MinecraftServer server, ServerPlayer player) {
+		Session session = SESSIONS.get(player.getUUID());
+		if (session == null || !session.hasSampled) {
+			return new Diagnostic(false, Long.MIN_VALUE, null, 0, 0, 0, false, 0, 0, 0, false, false);
+		}
+		return new Diagnostic(true, session.lastSampleTick, session.lastSampleEye, session.lastVanillaBlockLight,
+				session.lastEffectiveBlockLight, session.lastPortableEmission, session.lastCanSeeSky,
+				session.previousExposure, session.exposureAfter, session.exposureDelta,
+				session.lastShelter, session.lastSpeedRestricted);
 	}
 }

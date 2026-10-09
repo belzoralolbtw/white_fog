@@ -70,7 +70,7 @@ public final class FlatStoneInteractions {
 			if (player.isShiftKeyDown()) {
 				FlatStoneRemoval.remove(serverPlayer, serverLevel, pos);
 			} else {
-				openStation(serverPlayer);
+				openStation(serverPlayer, pos);
 			}
 			return InteractionResult.SUCCESS;
 		}
@@ -115,7 +115,7 @@ public final class FlatStoneInteractions {
 			if (!(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer serverPlayer)) {
 				return InteractionResult.PASS;
 			}
-			openStation(serverPlayer);
+			openStation(serverPlayer, pos);
 			return InteractionResult.SUCCESS;
 		}
 		// Recovery: Shift+ПКМ cobblestone по твёрдой земле (world interaction, не крафт).
@@ -130,10 +130,12 @@ public final class FlatStoneInteractions {
 		return null;
 	}
 
-	private static void openStation(ServerPlayer player) {
+	private static void openStation(ServerPlayer player, BlockPos pos) {
 		if (player.isSpectator()) {
 			return;
 		}
+		WhiteFog.LOGGER.info("WHITEFOG_STATION_MENU player={} dimension={} lookPos={} action=open",
+				player.getStringUUID(), player.level().dimension().identifier(), pos);
 		player.openMenu(new SimpleMenuProvider(
 				(syncId, inventory, p) -> new FlatStoneMenu(syncId, inventory),
 				Component.literal("Плоский камень")));

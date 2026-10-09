@@ -1,6 +1,7 @@
 package com.whitefog.station;
 
 import com.whitefog.WhiteFogConfig;
+import com.whitefog.WhiteFog;
 import com.whitefog.content.WhiteFogContent;
 import com.whitefog.content.block.entity.FlatStoneBlockEntity;
 
@@ -45,6 +46,8 @@ public final class FlatStoneRemoval {
 		}
 		BlockEntity blockEntity = level.getBlockEntity(pos);
 		if (blockEntity instanceof FlatStoneBlockEntity station && station.isBusy()) {
+			WhiteFog.LOGGER.info("WHITEFOG_STATION_REMOVE player={} dimension={} pos={} outcome=BUSY",
+					player.getStringUUID(), level.dimension().identifier(), pos);
 			player.sendSystemMessage(Component.literal(WhiteFogConfig.MESSAGE_STATION_BUSY), true);
 			return Outcome.BUSY;
 		}
@@ -56,6 +59,8 @@ public final class FlatStoneRemoval {
 			return Outcome.NO_BLOCK;
 		}
 		StationDropHelper.giveOne(player, level, pos, new ItemStack(WhiteFogContent.FLAT_STONE_ITEM));
+		WhiteFog.LOGGER.info("WHITEFOG_STATION_REMOVE player={} dimension={} pos={} outcome=REMOVED",
+				player.getStringUUID(), level.dimension().identifier(), pos);
 		return Outcome.REMOVED;
 	}
 }

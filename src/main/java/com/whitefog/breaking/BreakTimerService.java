@@ -62,6 +62,8 @@ import java.util.UUID;
  * </ul>
  */
 public final class BreakTimerService {
+	public record Diagnostic(boolean active, String dimension, BlockPos pos, String category, String tool,
+			long startTick, int requiredTicks, long elapsedTicks) { }
 	/** Сообщение отказа (утверждено ROADMAP_STEPS.md, этап 1.3). */
 	public static final Component MESSAGE_TOO_HARD = Component.literal("Слишком крепко — нужен инструмент");
 
@@ -90,6 +92,8 @@ public final class BreakTimerService {
 
 	/** Активные сессии по UUID игрока. Изменяются только в серверном потоке. */
 	private static final Map<UUID, BreakSession> SESSIONS = new HashMap<>();
+	private record DenialLog(String reason, long tick) { }
+	private static final Map<UUID, DenialLog> DENIAL_LOGS = new HashMap<>();
 
 	/** Последний тик подсказки отказа, на игрока и причину. */
 	private static final Map<UUID, Map<RefuseReason, Long>> LAST_MESSAGE = new HashMap<>();
@@ -107,6 +111,15 @@ public final class BreakTimerService {
 		}
 		registered = true;
 		WhiteFog.LOGGER.info("White Fog: block-break rules registered (stage 1.3, server-authoritative timer)");
+	}
+
+	/** Read-only active-break snapshot for dev diagnostics. */
+	public static Diagnostic diagnostics(ServerPlayer player) {
+		BreakSession s = SESSIONS.get(player.getUUID());
+		if (s == null) return new Diagnostic(false, "", null, "NONE", "", 0L, 0, 0L);
+		long now = player.level().getLevelData().getGameTime();
+		return new Diagnostic(true, s.dimension().identifier().toString(), s.pos(), s.category().name(),
+				s.tool().getHoverName().getString(), s.startTick(), s.requiredTicks(), Math.max(0L, now - s.startTick()));
 	}
 
 	// ------------------------------------------------------------------
@@ -213,6 +226,8 @@ public final class BreakTimerService {
 		BreakSession session = new BreakSession(id, level.dimension(), pos.immutable(), tool.copy(), state,
 				category, toolKind, gameTime(level), requiredTicks);
 		SESSIONS.put(id, session);
+		WhiteFog.LOGGER.info("WHITEFOG_BREAK_START player={} dimension={} pos={} category={} tool={} required={}",
+				player.getStringUUID(), level.dimension().identifier(), pos, category, toolKind, requiredTicks);
 		level.destroyBlockProgress(player.getId(), pos, 0);
 		return true;
 	}
@@ -272,6 +287,8 @@ public final class BreakTimerService {
 	private static boolean onAbort(ServerPlayer player, ServerLevel level, BlockPos pos) {
 		UUID id = player.getUUID();
 		if (SESSIONS.remove(id) != null) {
+			WhiteFog.LOGGER.info("WHITEFOG_BREAK_CANCEL player={} dimension={} pos={} reason=ABORT_PACKET",
+					player.getStringUUID(), level.dimension().identifier(), pos);
 			return true;
 		}
 		// Сессии нет: для покрытых блоков гасим ванильное действие, для остальных — обычное поведение.
@@ -431,6 +448,9 @@ public final class BreakTimerService {
 			} else {
 				commitNormal(level, pos, state, player, category);
 			}
+			WhiteFog.LOGGER.info("WHITEFOG_BREAK_COMMIT player={} dimension={} pos={} category={} outcome={}",
+					player.getStringUUID(), level.dimension().identifier(), pos, category,
+					level.getBlockState(pos).equals(state) ? "UNCHANGED" : "REMOVED");
 		} finally {
 			level.destroyBlockProgress(player.getId(), pos, -1);
 		}
@@ -446,15 +466,23 @@ public final class BreakTimerService {
 		List<ItemStack> drops = BlockBreakPolicy.dropsZero(category)
 				? List.of()
 				: Block.getDrops(after, level, pos, blockEntity, player, tool);
-		// recursionLeft = 512 — как в ванильных вызовах destroyBlock (взрывы/ломание), полные соседние апдейты.
-		boolean removed = level.destroyBlock(pos, false, player, 512);
-		if (!removed) {
-			return;
-		}
-		for (ItemStack drop : drops) {
-			if (!drop.isEmpty()) {
-				Block.popResource(level, pos, drop);
+		// The custom loop drops after destroyBlock has removed the block; retain the source state
+		// so Block.popResource can preserve an unlit source instead of guessing from air.
+		com.whitefog.darkness.light.LightSourceService.DropContext previous =
+				com.whitefog.darkness.light.LightSourceService.pushCustomDropContext(level, pos, state);
+		try {
+			// recursionLeft = 512 — как в ванильных вызовах destroyBlock (взрывы/ломание), полные соседние апдейты.
+			boolean removed = level.destroyBlock(pos, false, player, 512);
+			if (!removed) {
+				return;
 			}
+			for (ItemStack drop : drops) {
+				if (!drop.isEmpty()) {
+					Block.popResource(level, pos, drop);
+				}
+			}
+		} finally {
+			com.whitefog.darkness.light.LightSourceService.restoreDropContext(previous);
 		}
 	}
 
@@ -572,15 +600,20 @@ public final class BreakTimerService {
 	private static void devLogRefusal(ServerPlayer player, BlockPos pos, BlockBreakRules.Category category,
 			BlockBreakPolicy.Decision decision, BlockBreakRules.ToolKind toolKind) {
 		if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
-			WhiteFog.LOGGER.info("White Fog [break-refuse] player={} pos={} category={} decision={} tool={}",
-					player.getStringUUID(), pos, category, decision, toolKind);
+			long tick = gameTime(player.level());
+			String reason = decision.name();
+			DenialLog previous = DENIAL_LOGS.get(player.getUUID());
+			if (previous != null && previous.reason().equals(reason) && tick - previous.tick() < 40) return;
+			DENIAL_LOGS.put(player.getUUID(), new DenialLog(reason, tick));
+			WhiteFog.LOGGER.info("WHITEFOG_BREAK_DENY player={} dimension={} pos={} category={} decision={} tool={}",
+					player.getStringUUID(), player.level().dimension().identifier(), pos, category, decision, toolKind);
 		}
 	}
 
 	private static void devLogAbort(ServerPlayer player, BreakSession session, AbortReason reason) {
 		if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
-			WhiteFog.LOGGER.info("White Fog [break-abort] player={} pos={} reason={}",
-					player.getStringUUID(), session.pos(), reason);
+			WhiteFog.LOGGER.info("WHITEFOG_BREAK_CANCEL player={} dimension={} pos={} reason={}",
+					player.getStringUUID(), session.dimension().identifier(), session.pos(), reason);
 		}
 	}
 

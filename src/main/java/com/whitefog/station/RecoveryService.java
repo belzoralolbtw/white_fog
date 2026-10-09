@@ -35,6 +35,8 @@ import java.util.UUID;
  * без потерь (отдельный «возврат» не требуется по построению).</p>
  */
 public final class RecoveryService {
+	public record Diagnostic(boolean active, String dimension, BlockPos target, long startTick, long elapsedTicks,
+			int cobblestoneRequired, int cobblestonePresent) { }
 
 	/** Активная recovery-задача игрока. */
 	private static final class Job {
@@ -103,10 +105,23 @@ public final class RecoveryService {
 		long now = level.getLevelData().getGameTime();
 		JOBS.put(player.getUUID(), new Job(level.dimension(), ground.above(),
 				player.getX(), player.getY(), player.getZ(), player.getHealth(), now));
+		WhiteFog.LOGGER.info("WHITEFOG_RECOVERY_START player={} dimension={} target={} duration={}",
+				player.getStringUUID(), level.dimension().identifier(), ground.above(), WhiteFogConfig.RECOVERY_FLAT_STONE_TICKS);
 	}
 
 	public static boolean hasJob(ServerPlayer player) {
 		return player != null && JOBS.containsKey(player.getUUID());
+	}
+
+	/** Read-only recovery job snapshot; never loads a block or mutates inventory. */
+	public static Diagnostic diagnostics(ServerPlayer player) {
+		Job job = JOBS.get(player.getUUID());
+		if (job == null) return new Diagnostic(false, "", null, 0L, 0L,
+				WhiteFogConfig.RECOVERY_COBBLESTONE_COST, countItem(player, Items.COBBLESTONE));
+		long now = player.level().getLevelData().getGameTime();
+		return new Diagnostic(true, job.dimension.identifier().toString(), job.target, job.startTick,
+				Math.max(0L, now - job.startTick), WhiteFogConfig.RECOVERY_COBBLESTONE_COST,
+				countItem(player, Items.COBBLESTONE));
 	}
 
 	/** Серверный тик всех recovery-задач; вызывается из единого END_SERVER_TICK мода. */
@@ -136,6 +151,8 @@ public final class RecoveryService {
 		if (!player.isAlive() || !player.level().dimension().equals(job.dimension)
 				|| player.getHealth() < job.startHealth) {
 			JOBS.remove(player.getUUID());
+			WhiteFog.LOGGER.info("WHITEFOG_RECOVERY_CANCEL player={} dimension={} target={} reason=lifecycle",
+					player.getStringUUID(), job.dimension.identifier(), job.target);
 			return;
 		}
 		double dx = player.getX() - job.startX;
@@ -143,6 +160,8 @@ public final class RecoveryService {
 		double dz = player.getZ() - job.startZ;
 		if (dx * dx + dy * dy + dz * dz > WhiteFogConfig.RECOVERY_CANCEL_MOVE_SQR) {
 			JOBS.remove(player.getUUID());
+			WhiteFog.LOGGER.info("WHITEFOG_RECOVERY_CANCEL player={} dimension={} target={} reason=moved",
+					player.getStringUUID(), job.dimension.identifier(), job.target);
 			return;
 		}
 		ServerLevel level = player.level();
@@ -153,20 +172,28 @@ public final class RecoveryService {
 		// Завершение: повторная серверная проверка входов (атомарность — списываем только сейчас).
 		JOBS.remove(player.getUUID());
 		if (countItem(player, Items.COBBLESTONE) < WhiteFogConfig.RECOVERY_COBBLESTONE_COST) {
+			WhiteFog.LOGGER.info("WHITEFOG_RECOVERY_CANCEL player={} dimension={} target={} reason=missing_input",
+					player.getStringUUID(), job.dimension.identifier(), job.target);
 			return;
 		}
 		BlockPos target = job.target;
 		if (!level.isLoaded(target)) {
+			WhiteFog.LOGGER.info("WHITEFOG_RECOVERY_CANCEL player={} dimension={} target={} reason=unloaded",
+					player.getStringUUID(), job.dimension.identifier(), target);
 			return;
 		}
 		BlockState targetState = level.getBlockState(target);
 		if (!targetState.canBeReplaced() || targetState.liquid()) {
+			WhiteFog.LOGGER.info("WHITEFOG_RECOVERY_CANCEL player={} dimension={} target={} reason=blocked",
+					player.getStringUUID(), job.dimension.identifier(), target);
 			return;
 		}
 		consumeItem(player, Items.COBBLESTONE, WhiteFogConfig.RECOVERY_COBBLESTONE_COST);
 		BlockState placed = WhiteFogContent.FLAT_STONE.defaultBlockState()
 				.setValue(FlatStoneBlock.FACING, player.getDirection().getOpposite());
 		level.setBlock(target, placed, Block.UPDATE_ALL);
+		WhiteFog.LOGGER.info("WHITEFOG_RECOVERY_COMPLETE player={} dimension={} target={} consumed={}",
+				player.getStringUUID(), job.dimension.identifier(), target, WhiteFogConfig.RECOVERY_COBBLESTONE_COST);
 	}
 
 	/** Очистка при disconnect/respawn/смене измерения. */

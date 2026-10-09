@@ -20,6 +20,8 @@
   - **1.5** eternal night (Overworld) + darkness exposure / Condition / speed penalty; **client-only visual
     adapter** removing the Darkness pulse/near-black (constant moderate darkening).
   - **1.6** fading vanilla light sources, per-dimension fuel store, refuel job, `G` Work Panel.
+  - **1.7** closed shelter detector + loaded-only collision adapter + UUID runtime cache, wired into the existing
+    exposure sample and server lifecycle. Automatic verification is recorded below; live-room acceptance is pending.
   - **After stage 1.6 (bugfix/stabilization — NOT a separate roadmap stage):** right-click source menu
     (`Заправить`/`Потушить`/`Зажечь`), bounded HUD layout, offhand portable light; refuel = 20% of capacity,
     `Заправить` never changes `lit`, `(remaining, lit)` component with legacy migration, server-side inventory
@@ -36,26 +38,86 @@
     (`DarknessVisualConfig.FADE_IN_PER_SECOND` 2.0 → **0.4/s**, ≈2.5 s, `FADE_OUT_PER_SECOND` unchanged); and split
     the HUD source line from the `G` refuel action (`LightPanelFormat.hudSourceLine/hudFuelLine`).
 - **Verification state:** `gradlew build` + bounded server/client smokes pass; every sandbox passes. The current
-  version — **upper-level roadmap stages 1.1–1.6 complete, plus the post-1.6 bugfix/stabilization passes** — was
-  **personally verified in-game by the user across the main mechanics**, and that manual pass is what
-  surfaced the fixed bugs (Darkness pulse, abrupt fade-in, misleading HUD source line, menu button sizing,
+  version — **upper-level roadmap stages 1.1–1.6 complete, plus the post-1.6 bugfix/stabilization passes and the
+  stage 1.7 shelter / diagnostics / light-round-trip work (automatic verification only; its live-room acceptance is
+  still pending)** — was **personally verified in-game by the user across the main mechanics**, and that manual pass
+  is what surfaced the fixed bugs (Darkness pulse, abrupt fade-in, misleading HUD source line, menu button sizing,
   first-person torch). Verified in-game: eternal night/exposure, darkness behavior/no pulse, fading light sources /
-  fuel / menu / actions, `G` panel, offhand portable light, placement/drop/persistence, adaptive menus. Sandboxes and
+  fuel / menu / actions, `G` panel, offhand portable light, placement/drop/persistence, adaptive menus. The stage
+  1.7 shelter detector, the debug diagnostics and the light drop/placement round-trip have only automated evidence
+  (sandboxes, startup fixtures, build, smokes) and still require live in-game acceptance. Sandboxes and
   smokes remain **supplementary** automatic logic checks, **not** a substitute for the manual acceptance. Known
   accepted limitation: the first-person offhand torch may look absent/black while its dynamic light still works
   (confirmed by the user, treated as non-critical). `PLAYER_GUIDE.md` is a compact player description
   (status / features / interactions / fuel / limits / checks), not a manual checklist.
-- **Roadmap status (important):** the upper-level roadmap stages **1.1–1.6 are complete**; all later work on fading
+- **Roadmap status (important):** the upper-level roadmap stages **1.1–1.6 are complete and stage 1.7 is implemented
+  (automatic verification recorded below; live-room acceptance still pending)**; all later work on fading
   sources, the Darkness pulse, dynamic light, HUD, menu and UI shipped as **post-1.6 bugfix/stabilization, not as
   separate roadmap stages 1.7/1.8/1.9/1.10/1.11**. The current `ROADMAP_STEPS.md` holds the single remaining ticket
-  «Этап 1.7: Закрытое укрытие и адаптер света» (shelter detector) and it is **NOT started / not implemented**
-  (no `darkness/shelter/` package; `LightExposureService.isSheltered(...)` returns `false`). Do not confuse that
+  «Этап 1.7: Закрытое укрытие и адаптер света» (shelter detector), now implemented in `darkness/shelter/` and
+  connected through `LightExposureService.isSheltered(...)`. Do not confuse that
   ticket's label "1.7" with the source-menu / portable-light work, which was a post-1.6 bugfix, not a roadmap stage.
+- **Stage 1.7 integration (2026-10-09, approved main, committed locally; not pushed):** production pure classes are tested
+  directly by `tests/eternal_darkness/shelter/runner.ps1`; the original 216 assertions plus five shape-neighbor
+  dependency checks pass: `logs/shelter_selftest_20261009_125000_342_ebe9fe26.{txt,result}`, 221 assertions, strict
+  `javac -Xlint:all -Werror`, SUCCESS, 1136 ms total / 98 ms Java. Existing API evidence:
+  `logs/shelter_api_20261009_123107_242_4a78bd76.txt`, SUCCESS, 13215 ms, local MC/Fabric jar hashes and bytecode.
+  Ad Astra `FloodFill3D.java` reference was read again; independently adapted FIFO/face-sealing idea, not copied.
+  Main source integration was explicitly approved by the user; existing dirty work was preserved.
+  The architect personally reran the sandbox, build and both smokes and read their complete raw logs/results.
+  Build/smoke acceptance is supplementary; live-room/manual acceptance remains pending.
+  Final build via `scripts/build.bat`: `logs/build_20261009_125526.txt`, SUCCESS, 5 s, Loom 1.18.3, exit 0.
+  Server: `logs/server_smoke_20261009_125231_994_bff572b8.{txt,result}`, SUCCESS, 34365 ms;
+  client: `logs/client_smoke_20261009_125707_347_ba6ab741.{txt,result}`, SUCCESS, 19335 ms.
+  Both logs report `WHITEFOG_SHELTER_SELFTEST assertions=84 handlers=true status=SUCCESS` (91/65 ms);
+  these are real vanilla shape fixtures + transformed handler checks, not live world acceptance.
+  Client Darkness/portable-light self-tests also report SUCCESS. Smoke roots 15100 and 4808 exited (CIM empty);
+  the prior common class scan has zero client references; architect `git diff --check` is clean except CRLF warnings.
+  Runtime adapter correction: CHECK was replaced with read-only entity-map lookup.
+- **Diagnostics/drop round-trip pass (2026-10-09, committed locally; not pushed):** added read-only
+  `darkness/LightDiagnostics.java` and expanded dev-only `/whitefog debug [player]` with Russian-friendly
+  shelter/exposure/light/Darkness/hands/source/lifecycle details. `LightExposureService` only keeps last-sample
+  diagnostic bookkeeping; gameplay policy is unchanged. Structured `WHITEFOG_LIGHT_*` markers cover event-only
+  shelter failures and light placement/drop/state transitions. `BreakTimerService` captures pre-removal source
+  state before `destroyBlock`, so `Block.popResource` preserves `lit=false` for fueled extinguished standing and
+  wall torches. Reference: LambDynamicLights `api/src/main/java/dev/lambdaurora/lambdynlights/api/item/ItemLightSource.java`
+  (`https://github.com/LambdAurora/LambDynamicLights/blob/1.21.11/api/src/main/java/dev/lambdaurora/lambdynlights/api/item/ItemLightSource.java`).
+  Exact sandbox round-trips, build, server smoke and client smoke pass; API evidence is in `logs/api_diag_20261009.txt`
+  and `logs/api_diag_20261009_bytecode.txt`.
+- **Architect correction pass (2026-10-09, committed locally; not pushed — live/manual acceptance still pending):** vanilla player break now wraps
+  `ServerPlayerGameMode.destroyBlock(BlockPos)` with MixinExtras 0.5.5 `@WrapMethod` and `try/finally`;
+  custom break restores the prior frame in `finally`. Context matches level identity and immutable position;
+  unmatched contexts use the real neighboring state, expected block id and actual item kind are checked, AIR
+  does not manufacture fuel. Shared `LightFuelRoundTrip` is used by production placement/drop conversions.
+  Static `SUPPORTED` was removed; server startup executes 98 fixture assertions using actual BlockState,
+  ItemStack/component, isolated LightSourceStore, scoped context, duplicate/negative and stream-codec cases.
+  Latest marker: `WHITEFOG_LIGHT_ROUNDTRIP_SELFTEST assertions=98 ... status=SUCCESS`.
+  `ShelterCache.diagnose` has seven production sandbox regressions for OPEN_VOLUME/read errors/UNLOADED and
+  unchanged cache (228 assertions total). Current/last-sample data is separated, diagnostics does not create
+  exposure sessions or shelter cache entries, persistent describe output is restored, debug lines also go to
+  INFO `WHITEFOG_DEBUG`. Report includes break/recovery jobs, light job/menu revision, actual night rule/clock,
+  and loaded-only bounded DDA station fields; DDA selects the first non-air voxel, not precise vanilla shape hit.
+  Added transition logs for break start/commit/cancel/deny, station pickup/removal/menu, recovery, player lifecycle,
+  manual light actions/refuel completion/cancellation and shelter/exposure threshold changes.
+  Remaining review gaps: exhaustive refusal reason coverage/rate limiting, precise station shape targeting,
+  actual action-chain/live world acceptance and whole-command runtime fixture coverage are NOT proven.
+  Latest evidence: `logs/darkness_light_fix_selftest_20261009_151656.txt` (67, SUCCESS);
+  `logs/shelter_selftest_20261009_150610_112_10f5c72d.{txt,result}` (228, SUCCESS, 1228 ms);
+  `logs/build_20261009_151722.txt` (SUCCESS, 7s);
+  `logs/server_smoke_20261009_151802_951_6ac7d630.{txt,result}` and
+  `logs/client_smoke_20261009_151846_665_c116fd4c.{txt,result}` (SUCCESS).
+  API evidence: `logs/api_servergamemode_20261009.txt`, `api_blockdrops_20261009.txt`,
+  `api_mixinextras_20261009.txt`, `api_diag_look_20261009.txt`. Re-read LambDynamicLights ItemLightSource
+  reference saved in `logs/reference_ItemLightSource_20261009.java`; it is item-light predicate design, not a
+  fuel persistence implementation. Startup fixtures/sandboxes are supplementary, not live pickup proof.
 - **Git:** repo `https://github.com/belzoralolbtw/white_fog` (PUBLIC), `origin/master`. Current chain:
   `ff5c05a` (`feat: add fading light sources and portable lighting`, post-1.6 work) → `12db179` / `439f5a5`
   (`docs: update project memory after release`) → `3aaac84` (`docs: record manual gameplay acceptance`) →
-  `75a0999` (`docs: align roadmap stage status`). All of these are already on `origin/master`. Never push future
-  work without explicit user approval.
+  `75a0999` (`docs: align roadmap stage status`) → `9c28fba` (`docs: update project memory after roadmap sync`) →
+  `af17f8d` (`chore: replace CC0 with proprietary license`); all of these are already on `origin/master`.
+  The stage-1.7 + diagnostics/light-round-trip work is a **local commit** on top
+  (`feat: complete shelter and light diagnostics stage 1.7`), **not pushed**. Never push future work without
+  explicit user approval.
 
 ## Structure
 
@@ -77,16 +139,22 @@ src/main/java/com/whitefog/            # COMMON — must NOT import net.minecraf
   content/menu/LightSourceMenu.java    # post-1.6: empty source menu; clickMenuButton -> server; broadcastChanges -> refresh
   station/FlatStoneInteractions.java / FlatStoneRemoval / SmallStonePickup / StationDropHelper / RecoveryService # 1.4
   darkness/DarknessConfig.java / LightExposurePolicy.java / LightExposureService.java # 1.5: exposure/Condition/speed
-  darkness/EternalNightWorld.java      # 1.5: Overworld clock=18000 + GameRules.ADVANCE_TIME=false
+  darkness/EternalNightWorld.java      # 1.5: Overworld clock=18000 + GameRules.ADVANCE_TIME=false (+ diagnostics record)
+  darkness/LightDiagnostics.java       # 1.7: read-only diagnostic snapshot (shelter/exposure/light/hands) for `/whitefog debug`
+  darkness/shelter/{Voxels,CollisionMasks,ShelterDetector,ShelterSnapshot,ShelterCache,ShelterProvider}.java # 1.7
+  darkness/shelter/ShelterRuntimeSelfTest.java # dev-only real vanilla collision fixtures + mixin handler check
   darkness/light/LightConfig.java / LightFuelPolicy.java / LightSourceBlocks.java # 1.6: fuel/capacity + WHITE_FOG_LIT
   darkness/light/LightFuelComponent.java / LightSourceStore.java # 1.6 + post-1.6: item component + per-dimension SavedData
   darkness/light/LightSourceService.java / LightSourceInteractions.java # 1.6 + post-1.6: scan/tick/refuel/nearest/drop/receiver
+  darkness/light/LightFuelRoundTrip.java # 1.7: shared placement/drop fuel conversion + server-startup 98-assertion fixture self-test
   darkness/light/PortableLightPolicy.java / PortableLightService.java # post-1.6: offhand light + inventory fuel tick
   darkness/light/LightPanelFormat.java / SourceActionPolicy.java / LightMenuLayout.java # post-1.6 pure UI/action rules
   network/*.java                       # payload records (see Networking below) — registered once in WhiteFogPayloads
   mixin/AbstractContainerMenuMixin.java / RecipeManagerMixin.java / ServerGamePacketListenerImplMixin.java # 1.2
   mixin/ServerPlayerGameModeMixin.java # 1.3: handleBlockBreakAction HEAD -> BreakTimerService
   mixin/light/*.java                   # 1.6: lit property, emission, particles, placement, drop, piston, ignite
+  mixin/light/ServerPlayerGameModeDropContextMixin.java # 1.7: @WrapMethod destroyBlock -> push/restore DropContext (pre-removal state)
+  mixin/shelter/LevelChunkShelterMixin.java # 1.7: successful setBlockState RETURN -> bbox+1 invalidation
 src/client/java/com/whitefog/client/   # CLIENT — client API only
   WhiteFogClient.java                  # ClientModInitializer: receivers, HUD, keybinds, disconnect clear, dev self-checks
   ClientPlayerState.java / ClientDarknessState.java / ClientLightState.java # client caches (never source of truth)
@@ -106,7 +174,7 @@ src/main/resources/                    # fabric.mod.json, white_fog.mixins.json,
   assets/minecraft/blockstates/*.json  # 1.6: overrides vanilla torch/wall_torch/soul_*/lantern to add white_fog_lit
   data/white_fog/loot_table/blocks/    # 1.4: flat_stone.json, small_stone.json (no survives_explosion)
 tests/                                 # independent sandboxes (NOT part of build, never touch src/): break_timer/ station/
-                                       #   item_gui_center/ eternal_darkness/{exposure,light,portable_light}/ darkness_visual/
+                                       #   item_gui_center/ eternal_darkness/{exposure,light,portable_light,shelter}/ darkness_visual/
                                        #   darkness_light_fix/ portable_light_dynamic/
 scripts/build.bat|server_smoke.bat|client_smoke.bat
 README.md  ROADMAP_STEPS.md  PLAYER_GUIDE.md   # compact player guide (not a checklist)
@@ -215,6 +283,13 @@ README.md  ROADMAP_STEPS.md  PLAYER_GUIDE.md   # compact player guide (not a che
 
 ## TODO / known gaps
 
+- **Stage 1.7 live acceptance pending:** cave room, built house, stationary player/other player's door change,
+  chunk boundary and two players still require in-game testing. One node per voxel cannot represent two separate
+  air regions in a door voxel; reachable door cells count toward volume/bbox and need their own floor/roof.
+  Ordinary partial shapes leak deliberately. Feet fit uses a centered 0.6-wide box in the feet cell and empty
+  collision context, not the player's precise offset/pose. Custom shapes reading outside their one-cell halo
+  fail closed; neighbor reads are dependencies. Dev unloaded diagnostics use DEBUG; read errors use WARN.
+
 - **First-person torch appearance (accepted limitation).** The offhand torch may look absent/black in first person
   even though its dynamic light works; the user confirmed this in-game and it is treated as non-critical (post-1.6
   bugfix pass). The earlier report (charged offhand torch "not visible in hand", `G` says «Источник: нет рядом») was
@@ -225,9 +300,6 @@ README.md  ROADMAP_STEPS.md  PLAYER_GUIDE.md   # compact player guide (not a che
   `(remaining,lit)` component survives the network codec (so `streamRoundTrip=true` in the server smoke). Runtime
   diagnostics `WHITEFOG_PORTABLE_LIGHT_STATE` / `WHITEFOG_FP_HAND_LIGHT` are available if the visual issue is
   revisited. No custom torch item model exists; vanilla `minecraft:item/torch` renders 26 quads.
-- **ROADMAP «Этап 1.7: Закрытое укрытие» (shelter detector) — not started.** `isSheltered` still returns `false`,
-  so the "open sky adds +1 exposure inside a roofed room" rule only depends on `canSeeSky` for now. Planned files:
-  `darkness/shelter/{ShelterDetector,ShelterCache,ShelterSnapshot}.java` + `ShelterProvider.isSheltered(player)`.
 - **Mod pickaxes** `white_fog:bronze_pickaxe` / `iron_pickaxe` / `steel_pickaxe` are not registered (stage 6.4),
   so hard blocks/stations cannot yet be mined with a mod pickaxe (vanilla tools are refused).
 - **Worldgen (stage 2.1)** not implemented: `flat_stone`/`small_stone` do not generate naturally.
@@ -266,20 +338,28 @@ tests\station\run_station_selftest.bat
 tests\item_gui_center\run_gui_icon_center_selftest.bat
 tests\item_gui_center\run_client_itemmodel_probe.bat
 tests\eternal_darkness\{exposure,light,portable_light}\run_*_selftest.bat
+tests\eternal_darkness\shelter\run_shelter_selftest.bat   :: production pure logic, 228 assertions
+tests\eternal_darkness\shelter\run_api_evidence.bat       :: javap + jar hashes, UTF-8 evidence
 tests\darkness_visual\run_darkness_visual_selftest.bat
 tests\darkness_visual\run_client_visual_probe.bat
 tests\darkness_light_fix\run_darkness_light_fix_selftest.bat   :: post-1.6 fix logic (blend stability, placement recording, button padding)
 tests\portable_light_dynamic\run_portable_light_dynamic_selftest.bat  :: post-1.6 root cause (RenderSectionRegion gate, falloff, entity light, section radius)
 ```
 Expected sandbox sizes: break_timer 118, station 270, item_gui_center 14, exposure 89, light 69,
-portable_light 469, darkness_visual 67, darkness_light_fix 23, portable_light_dynamic 81. Sandboxes are **logic-only and NOT runtime proof** — say so in reports.
+portable_light 469, darkness_visual 67, darkness_light_fix 67, portable_light_dynamic 81, shelter 228.
+Sandboxes are **logic-only and NOT runtime proof** — say so in reports.
 
 Key smoke evidence strings (grep fresh logs): `WHITEFOG_CRAFTING_SELFTEST ... status=SUCCESS`,
 `block-break rules registered (stage 1.3 ...)`, `darkness light-exposure service registered (stage 1.5 ...)`,
 `eternal night enabled (advance_time=false, day_time=18000)`, `WHITEFOG_LIGHT_SELFTEST ... status=SUCCESS`,
-`WHITEFOG_LIGHT_FUEL_CODEC_SELFTEST ... streamRoundTrip=true ... status=SUCCESS`, and on the client
+`WHITEFOG_LIGHT_FUEL_CODEC_SELFTEST ... streamRoundTrip=true ... status=SUCCESS`,
+`WHITEFOG_LIGHT_ROUNDTRIP_SELFTEST assertions=98 ... status=SUCCESS`,
+`WHITEFOG_SHELTER_SELFTEST assertions=<n> handlers=true elapsed_ms=<n> status=SUCCESS`, and on the client
 `MultiPlayerGameModeMixin applied=true`, `WHITEFOG_PORTABLE_LIGHT_SELFTEST handlers=true` (checks all three
 hooks: `LightCoordsUtil.BrightnessGetter`, `EntityRenderer`, `ItemInHandRenderer`), `WHITEFOG_DARKNESS_VISUAL_SELFTEST handlers=true`.
+The smoke scripts now also gate on the server/client `WHITEFOG_SHELTER_SELFTEST ... status=SUCCESS` marker (an
+observed `status=FAILURE` fails the smoke), stamp runs with millisecond+GUID suffixes, verify the owned PID's
+command line before `taskkill /T /F`, and write `elapsed_ms=` into the `.result`.
 In a real world, `WHITEFOG_PORTABLE_LIGHT_STATE offhand=... emission=... dynamicAtEye=...` is logged once per
 offhand light-state change and `WHITEFOG_FP_HAND_LIGHT offhandEmission=... packedBlockBefore=... dynamic=...`
 once per first-person hand-light state change (runtime diagnostics; absent in headless smoke because there is no player).
@@ -321,6 +401,15 @@ Get-ChildItem -Recurse build\classes\java\main -Filter *.class |
   user approval.
 
 ## Decisions / 26.2 traps
+
+- **Shelter (1.7):** fixed FIFO DOWN/UP/NORTH/SOUTH/WEST/EAST, inclusive 125 cells and bbox 9x5x9,
+  minimum 18 plus clear height-two column. Full collision volumes block; closed DoorBlock/TrapDoorBlock masks
+  come from actual collision union boundary coverage (no names); OPEN is permeable. Floor/roof checked per
+  occupied XZ endpoint. Provider uses only `ServerChunkCache.getChunkNow`, never a loading Level for shapes.
+  `LevelChunk.getBlockEntity(..., CHECK)` still promotes pending NBT in 26.2; use `getBlockEntities().get(pos)`
+  to remain read-only. UUID cache TTL is `<20`, rechecks all read dependencies on hits, invalidates bbox+1 and
+  shape dependencies; join/disconnect/respawn/dimension/chunk/level unload/server stop clear runtime entries.
+  The existing exposure sample calls the provider before the unchanged policy; no new tick/payload/state.
 
 - **Attachment API** (`fabric-data-attachment-api-v1`) instead of static fields; `copyOnDeath()` + explicit resync on
   respawn and dimension change. Base sync is a custom S2C NBT snapshot (explicit rate control).

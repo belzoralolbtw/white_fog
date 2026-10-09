@@ -6,6 +6,8 @@ import com.whitefog.breaking.BreakTimerService;
 import com.whitefog.darkness.LightExposureService;
 import com.whitefog.darkness.light.LightSourceService;
 import com.whitefog.darkness.light.PortableLightService;
+import com.whitefog.darkness.shelter.ShelterProvider;
+import com.whitefog.darkness.shelter.ShelterRuntimeSelfTest;
 import com.whitefog.server.command.WhiteFogDebugCommand;
 import com.whitefog.state.PlayerSurvivalState;
 import com.whitefog.station.RecoveryService;
@@ -15,6 +17,9 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityLevelChangeEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLevelEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
@@ -63,8 +68,13 @@ public final class WhiteFogServer {
 
 		// Этап 1.3: очистка сессий разрушения при disconnect (tick-валидация сама ловит смерть/смену измерения).
 		ServerPlayConnectionEvents.DISCONNECT.register(WhiteFogServer::onPlayerDisconnect);
+		ServerChunkEvents.CHUNK_UNLOAD.register((level, chunk) ->
+				ShelterProvider.chunkUnloaded(level, chunk.getPos().x(), chunk.getPos().z()));
+		ServerLevelEvents.UNLOAD.register((server, level) -> ShelterProvider.levelUnloaded(level));
+		ServerLifecycleEvents.SERVER_STOPPED.register(server -> ShelterProvider.clearAll());
 
 		if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
+			ShelterRuntimeSelfTest.run();
 			CommandRegistrationCallback.EVENT.register(WhiteFogDebugCommand::register);
 			WhiteFog.LOGGER.info("White Fog: dev-only debug command registered (/whitefog debug [player])");
 		}
@@ -110,6 +120,9 @@ public final class WhiteFogServer {
 	private static void onPlayerDisconnect(ServerGamePacketListenerImpl handler, MinecraftServer server) {
 		try {
 			ServerPlayer player = handler.getPlayer();
+			WhiteFog.LOGGER.info("WHITEFOG_LIFECYCLE event=disconnect player={} dimension={} pos={}",
+					player.getStringUUID(), player.level().dimension().identifier(), player.blockPosition());
+			ShelterProvider.clear(player.getUUID());
 			BreakTimerService.clearPlayer(player);
 			RecoveryService.clear(player);
 			SmallStonePickup.clear(player);
@@ -124,6 +137,9 @@ public final class WhiteFogServer {
 	private static void onPlayerJoin(ServerGamePacketListenerImpl handler, PacketSender sender, MinecraftServer server) {
 		try {
 			ServerPlayer player = handler.getPlayer();
+			WhiteFog.LOGGER.info("WHITEFOG_LIFECYCLE event=join player={} dimension={} pos={}",
+					player.getStringUUID(), player.level().dimension().identifier(), player.blockPosition());
+			ShelterProvider.clear(player.getUUID());
 			PlayerSurvivalState state = WhiteFogAttachments.getOrCreate(player);
 			state.invalidateSync();
 			PlayerStateSyncService.sendNow(server, player, state);
@@ -140,6 +156,9 @@ public final class WhiteFogServer {
 	 */
 	private static void onPlayerRespawn(ServerPlayer oldPlayer, ServerPlayer newPlayer, boolean alive) {
 		try {
+			WhiteFog.LOGGER.info("WHITEFOG_LIFECYCLE event=respawn player={} dimension={} pos={} alive={}",
+					newPlayer.getStringUUID(), newPlayer.level().dimension().identifier(), newPlayer.blockPosition(), alive);
+			ShelterProvider.clear(newPlayer.getUUID());
 			BreakTimerService.clearSession(newPlayer);
 			RecoveryService.clear(newPlayer);
 			SmallStonePickup.clear(newPlayer);
@@ -162,6 +181,9 @@ public final class WhiteFogServer {
 	 */
 	private static void onPlayerChangeLevel(ServerPlayer player, ServerLevel origin, ServerLevel destination) {
 		try {
+			WhiteFog.LOGGER.info("WHITEFOG_LIFECYCLE event=dimension player={} from={} to={} pos={}",
+					player.getStringUUID(), origin.dimension().identifier(), destination.dimension().identifier(), player.blockPosition());
+			ShelterProvider.clear(player.getUUID());
 			BreakTimerService.clearSession(player);
 			RecoveryService.clear(player);
 			SmallStonePickup.clear(player);

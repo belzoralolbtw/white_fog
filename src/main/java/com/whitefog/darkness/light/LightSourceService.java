@@ -1,7 +1,5 @@
 package com.whitefog.darkness.light;
-
 import com.mojang.serialization.Codec;
-
 import com.whitefog.WhiteFog;
 import com.whitefog.content.menu.LightSourceMenu;
 import com.whitefog.darkness.light.LightFuelPolicy.SourceKind;
@@ -64,9 +62,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>Ссылки: реальные deobf-классы 26.2 ({@code TorchBlock}/{@code WallTorchBlock}/{@code LanternBlock}/
  * {@code CampfireBlock}, {@code SavedDataStorage}, {@code ServerChunkEvents}) прочитаны через javap;
  * удалённый open-source поиск в этой среде недоступен (нет сети), поэтому источник правил — утверждённый
- * контракт ROADMAP_STEPS.md (этап 1.6).</p>
+ * контракт ROADMAP_STEPS.md (этап 1.6). Для разделения состояния источника и предмета сверено
+ * с открытым LambDynamicLights: {@code api/src/main/java/dev/lambdaurora/lambdynlights/api/item/ItemLightSource.java}
+ * (https://github.com/LambdAurora/LambDynamicLights/blob/1.21.11/api/src/main/java/dev/lambdaurora/lambdynlights/api/item/ItemLightSource.java).
+ * Здесь сохранение топлива адаптировано к серверному block/item round-trip.</p>
  */
 public final class LightSourceService {
+	public record RuntimeDiagnostic(boolean refuelActive, BlockPos refuelPos, long refuelElapsed,
+			boolean menuOpen, BlockPos menuPos, int menuStatus) { }
 
 	/**
 	 * Runtime refuel job: одна операция на игрока (не сохраняется). {@code Заправить} идёт 20 тиков
@@ -90,7 +93,7 @@ public final class LightSourceService {
 	}
 
 	/** Сигнатура открытой панели (для отправки обновления только при изменении). */
-	private record PanelSignature(long revision, int remaining, boolean lit) {
+	private record PanelSignature(BlockPos pos, long revision, int remaining, boolean lit) {
 	}
 
 	/** Ожидаемая установка, зафиксированная в {@code getStateForPlacement} для commit в {@code BlockItem.place}. */
@@ -111,6 +114,10 @@ public final class LightSourceService {
 	private static final Map<UUID, Long> OPEN_PANEL_LAST_SEND = new ConcurrentHashMap<>();
 
 	private static final ThreadLocal<Pending> PENDING_PLACEMENT = new ThreadLocal<>();
+	private static final Map<ServerLevel, LightSourceStore> KNOWN_STORES = new java.util.WeakHashMap<>();
+	private static final ThreadLocal<DropState> PENDING_DROP = new ThreadLocal<>();
+	public record DropContext(ServerLevel level, BlockPos pos, SourceKind kind, BlockState state, DropContext parent) { }
+	private record DropState(ServerLevel level, BlockPos pos, SourceKind kind, BlockState state, DropContext parent) { }
 
 	private static boolean registered = false;
 	/** Последний обработанный серверный тик (идемпотентность tickAll). */
@@ -162,6 +169,89 @@ public final class LightSourceService {
 			WhiteFog.LOGGER.error("WHITEFOG_LIGHT_SELFTEST status=FAILURE (exception)", e);
 		}
 		fuelCodecSelfTest(server);
+		productionRoundTripSelfTest(server);
+	}
+
+	private static void productionRoundTripSelfTest(MinecraftServer server) {
+		int assertions = 0;
+		try {
+			for (BlockState fixture : List.of(net.minecraft.world.level.block.Blocks.TORCH.defaultBlockState(),
+					net.minecraft.world.level.block.Blocks.WALL_TORCH.defaultBlockState(),
+					net.minecraft.world.level.block.Blocks.SOUL_TORCH.defaultBlockState(),
+					net.minecraft.world.level.block.Blocks.SOUL_WALL_TORCH.defaultBlockState(),
+					net.minecraft.world.level.block.Blocks.LANTERN.defaultBlockState(),
+					net.minecraft.world.level.block.Blocks.SOUL_LANTERN.defaultBlockState())) {
+				SourceKind kind = LightSourceBlocks.kind(fixture);
+				for (int variant = 0; variant < 3; variant++) {
+					boolean burning = variant == 2;
+					int remaining = variant == 0 ? 0 : 1234;
+					BlockState state = LightSourceBlocks.withLit(fixture, burning);
+					ItemStack item = new ItemStack(kind == SourceKind.TORCH ? net.minecraft.world.item.Items.TORCH
+							: kind == SourceKind.SOUL_TORCH ? net.minecraft.world.item.Items.SOUL_TORCH : state.getBlock().asItem());
+					LightSourceStore isolated = new LightSourceStore();
+					BlockPos pos = new BlockPos(1, 2, 3);
+					isolated.put(pos, new Record(UUID.randomUUID(), LightSourceBlocks.blockId(state), remaining, 1L, false));
+					DropContext parent = pushDropContext(server.overworld(), pos, state);
+					boolean dropped;
+					try {
+						dropped = decorateDrop(isolated, pos, resolveDropState(server.overworld(), pos,
+								net.minecraft.world.level.block.Blocks.AIR.defaultBlockState()), item);
+						assertions++;
+						if (decorateDrop(isolated, pos, state, item.copy())) throw new IllegalStateException("duplicate drop");
+						assertions++;
+						if (!resolveDropState(server.getLevel(Level.NETHER), pos,
+								net.minecraft.world.level.block.Blocks.AIR.defaultBlockState()).isAir()) throw new IllegalStateException("dimension context");
+					} finally { restoreDropContext(parent); }
+					assertions++;
+					if (currentContext() != null) throw new IllegalStateException("context cleanup");
+					assertions++;
+					if (!dropped || LightFuelComponent.read(item).remainingTicks() != remaining
+							|| LightFuelComponent.read(item).lit() != burning) throw new IllegalStateException("drop " + kind);
+					BlockState placed = LightFuelRoundTrip.applyItem(fixture, item);
+					assertions++;
+					if (LightSourceBlocks.isLit(placed) != burning) throw new IllegalStateException("place " + kind);
+				}
+			}
+			assertions++;
+			if (!streamRoundTrip(server, new LightFuelComponent.LightFuel(4321, false)))
+				throw new IllegalStateException("positive-remaining unlit stream codec");
+			assertions++;
+			if (!streamRoundTrip(server, new LightFuelComponent.LightFuel(0, false)))
+				throw new IllegalStateException("empty stream codec");
+			BlockPos root = new BlockPos(11, 12, 13), neighbor = root.above();
+			BlockState unlit = LightSourceBlocks.withLit(net.minecraft.world.level.block.Blocks.TORCH.defaultBlockState(), false);
+			DropContext outer = pushDropContext(server.overworld(), root, unlit);
+			try {
+				DropContext nested = pushDropContext(server.overworld(), neighbor,
+						net.minecraft.world.level.block.Blocks.LANTERN.defaultBlockState());
+				try { throw new IllegalStateException("intentional fixture exception"); }
+				catch (IllegalStateException expected) { }
+				finally { restoreDropContext(nested); }
+				assertions++;
+				if (resolveDropState(server.overworld(), root, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState()) != unlit)
+					throw new IllegalStateException("nested context restoration");
+				assertions++;
+				if (resolveDropState(server.overworld(), neighbor, unlit) != unlit)
+					throw new IllegalStateException("neighbor fallback suppressed");
+				LightSourceStore isolated = new LightSourceStore();
+				isolated.put(root, new Record(UUID.randomUUID(), LightSourceBlocks.blockId(unlit), 555, 1L, false));
+				assertions++;
+				if (decorateDrop(isolated, root, unlit, new ItemStack(net.minecraft.world.item.Items.STICK)) || isolated.get(root) == null)
+					throw new IllegalStateException("unrelated item consumed record");
+				assertions++;
+				if (decorateDrop(isolated, root, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(),
+						new ItemStack(net.minecraft.world.item.Items.TORCH))) throw new IllegalStateException("air manufactured fuel");
+				assertions++;
+				if (decorateDrop(isolated, root, net.minecraft.world.level.block.Blocks.WALL_TORCH.defaultBlockState(),
+						new ItemStack(net.minecraft.world.item.Items.TORCH))) throw new IllegalStateException("expected block id mismatch");
+			} finally { restoreDropContext(outer); }
+			assertions++;
+			if (currentContext() != null) throw new IllegalStateException("exception context leaked");
+			WhiteFog.LOGGER.info("WHITEFOG_LIGHT_ROUNDTRIP_SELFTEST assertions={} fixtures=standing,wall,soul,lantern "
+					+ "dropAndPlacement=true streamUnlitPositive=true status=SUCCESS", assertions);
+		} catch (RuntimeException error) {
+			WhiteFog.LOGGER.error("WHITEFOG_LIGHT_ROUNDTRIP_SELFTEST assertions={} status=FAILURE", assertions, error);
+		}
 	}
 
 	/**
@@ -248,8 +338,22 @@ public final class LightSourceService {
 
 	/** Хранилище источников для измерения (per-dimension SavedData). */
 	public static LightSourceStore store(ServerLevel level) {
-		return level.getDataStorage().computeIfAbsent(LightSourceStore.TYPE);
+		LightSourceStore store = level.getDataStorage().computeIfAbsent(LightSourceStore.TYPE);
+		KNOWN_STORES.put(level, store);
+		return store;
 	}
+
+	/** Read-only refuel/menu runtime state for dev diagnostics. */
+	public static RuntimeDiagnostic diagnostics(ServerPlayer player) {
+		RefuelJob job = JOBS.get(player.getUUID());
+		PanelSignature panel = OPEN_PANEL_SIG.get(player.getUUID());
+		long now = player.level().getServer().getTickCount();
+		return new RuntimeDiagnostic(job != null, job == null ? null : job.pos(),
+			job == null ? 0L : Math.max(0L, now - job.startTick()), panel != null,
+			panel == null ? null : panel.pos(), panel == null ? -1 : (int) panel.revision());
+	}
+
+	public static boolean hasActiveRefuel(ServerPlayer player) { return JOBS.containsKey(player.getUUID()); }
 
 	// ------------------------------------------------------------------
 	// Ленивая инициализация чанка
@@ -425,6 +529,8 @@ public final class LightSourceService {
 				level.setBlock(pos, LightSourceBlocks.withLit(state, false), Block.UPDATE_ALL);
 				store.put(pos, new Record(record.sourceUuid(), record.expectedBlockId(), 0,
 						record.revision() + 1L, record.managedByPost()));
+				WhiteFog.LOGGER.info("WHITEFOG_LIGHT_STATE_CHANGE pos={} remaining=0 lit=false revision={}", pos,
+						record.revision() + 1L);
 			} else {
 				store.put(pos, new Record(record.sourceUuid(), record.expectedBlockId(), remaining,
 						record.revision(), record.managedByPost()));
@@ -468,7 +574,7 @@ public final class LightSourceService {
 			PENDING_PLACEMENT.set(new Pending(context.getLevel().dimension(), placePos, kind,
 					LightSourceBlocks.blockId(state), remaining));
 		}
-		return LightSourceBlocks.withLit(state, lit);
+		return LightFuelRoundTrip.applyItem(state, stack);
 	}
 
 	/** Сбрасывает зафиксированную установку (вызывается на HEAD {@code BlockItem.place}). */
@@ -504,6 +610,8 @@ public final class LightSourceService {
 		}
 		LightSourceStore store = store(serverLevel);
 		store.put(target.pos(), new Record(UUID.randomUUID(), target.blockId(), pending.remaining(), 1L, false));
+		WhiteFog.LOGGER.info("WHITEFOG_LIGHT_PLACE pos={} block={} remaining={} lit={}", target.pos(),
+				target.blockId(), pending.remaining(), LightSourceBlocks.isLit(serverLevel.getBlockState(target.pos())));
 	}
 
 	/**
@@ -549,15 +657,60 @@ public final class LightSourceService {
 		if (record == null) {
 			return;
 		}
-		BlockState state = level.getBlockState(pos);
-		// Старый путь (remaining>0) подразумевал lit; теперь lit читается из блока, а при
-		// недоступном состоянии (не managed) сохраняется семантика миграции.
-		boolean lit = LightSourceBlocks.isManaged(state)
-				? LightSourceBlocks.isLit(state)
-				: record.remainingTicks() > 0;
-		LightFuelComponent.writeFuel(stack, record.remainingTicks(), lit);
-		store.remove(pos);
+		DropState captured = PENDING_DROP.get();
+		boolean contextMatches = captured != null && captured.level() == level && captured.pos().equals(pos);
+		BlockState state = resolveDropState(level, pos, contextMatches ? captured.state() : level.getBlockState(pos));
+		if (!decorateDrop(store, pos, state, stack)) return;
+		boolean lit = LightFuelComponent.readLit(stack);
+		WhiteFog.LOGGER.info("WHITEFOG_LIGHT_DROP pos={} remaining={} lit={} recordRevision={}", pos,
+				record.remainingTicks(), lit, record.revision());
 	}
+
+	/** Production drop commit, also exercised with an isolated store by the runtime regression. */
+	static boolean decorateDrop(LightSourceStore store, BlockPos pos, BlockState state, ItemStack stack) {
+		Record record = store.get(pos);
+		SourceKind kind = LightSourceBlocks.kind(state);
+		if (record == null || kind == null || !LightSourceBlocks.matchesExpected(state, record.expectedBlockId())
+				|| !LightFuelRoundTrip.writeDrop(stack, state, record.remainingTicks(), kind)) return false;
+		store.remove(pos);
+		return true;
+	}
+
+	private static boolean itemMatchesKind(ItemStack stack, SourceKind kind) {
+		if (!(stack.getItem() instanceof net.minecraft.world.item.BlockItem blockItem)) {
+			return false;
+		}
+		return LightSourceBlocks.kind(blockItem.getBlock().defaultBlockState()) == kind;
+	}
+
+	/** Captures the pre-removal state for the custom BreakTimerService drop loop. */
+	public static DropContext pushDropContext(ServerLevel level, BlockPos pos, BlockState state) {
+		SourceKind kind = LightSourceBlocks.kind(state);
+		DropContext parent = currentContext();
+		PENDING_DROP.set(new DropState(level, pos.immutable(), kind, state, parent));
+		return parent;
+	}
+
+	public static DropContext pushCustomDropContext(ServerLevel level, BlockPos pos, BlockState state) {
+		return pushDropContext(level, pos, state);
+	}
+
+	private static DropContext currentContext() {
+		DropState state = PENDING_DROP.get();
+		return state == null ? null : new DropContext(state.level(), state.pos(), state.kind(), state.state(), state.parent());
+	}
+
+	static BlockState resolveDropState(ServerLevel level, BlockPos pos, BlockState fallback) {
+		DropState context = PENDING_DROP.get();
+		return context != null && context.level() == level && context.pos().equals(pos) ? context.state() : fallback;
+	}
+
+	/** Restores the nested state in all exits from the vanilla break method. */
+	public static void restoreDropContext(DropContext parent) {
+		if (parent == null) PENDING_DROP.remove();
+		else PENDING_DROP.set(new DropState(parent.level(), parent.pos(), parent.kind(), parent.state(), parent.parent()));
+	}
+
 
 	// ------------------------------------------------------------------
 	// nearest / снимки
@@ -618,6 +771,36 @@ public final class LightSourceService {
 		boolean lit = LightSourceBlocks.isLit(level.getBlockState(bestPos));
 		return Optional.of(new Snapshot(bestPos, bestRecord.sourceUuid(), bestRecord.revision(),
 				bestRecord.remainingTicks(), lit, bestKind));
+	}
+
+	/** Diagnostic search: existing persistent store only, all ray cells read via getChunkNow. */
+	public static Optional<Snapshot> diagnosticNearest(ServerLevel level, Vec3 eye, double radius) {
+		LightSourceStore existing = KNOWN_STORES.get(level);
+		if (existing == null) return Optional.empty();
+		Snapshot best = null;
+		double bestDistance = radius * radius;
+		for (Map.Entry<BlockPos, Record> entry : existing.entries()) {
+			BlockPos pos = entry.getKey();
+			var chunk = level.getChunkSource().getChunkNow(pos.getX() >> 4, pos.getZ() >> 4);
+			if (chunk == null) continue;
+			BlockState state = chunk.getBlockState(pos);
+			SourceKind kind = LightSourceBlocks.kind(state);
+			if (kind == null || !LightSourceBlocks.matchesExpected(state, entry.getValue().expectedBlockId())) continue;
+			double distance = eye.distanceToSqr(Vec3.atCenterOf(pos));
+			if (distance > bestDistance) continue;
+			boolean visible = net.minecraft.world.level.BlockGetter.traverseBlocks(eye, Vec3.atCenterOf(pos), level,
+					(world, cell) -> {
+						var loaded = world.getChunkSource().getChunkNow(cell.getX() >> 4, cell.getZ() >> 4);
+						if (loaded == null) return Boolean.FALSE;
+						if (cell.equals(pos)) return Boolean.TRUE;
+						return loaded.getBlockState(cell).isAir() ? null : Boolean.FALSE;
+					}, world -> Boolean.TRUE);
+			if (!visible) continue;
+			Record r = entry.getValue();
+			best = new Snapshot(pos, r.sourceUuid(), r.revision(), r.remainingTicks(), LightSourceBlocks.isLit(state), kind);
+			bestDistance = distance;
+		}
+		return Optional.ofNullable(best);
 	}
 
 	private static boolean isTieBetter(BlockPos candidate, BlockPos best) {
@@ -779,6 +962,8 @@ public final class LightSourceService {
 			}
 			try {
 				if (!validateJob(server, player, job)) {
+					WhiteFog.LOGGER.info("WHITEFOG_LIGHT_ACTION player={} dimension={} pos={} action=refuel outcome=CANCELLED reason=validation",
+							player.getStringUUID(), job.dimension().identifier(), job.pos());
 					JOBS.remove(player.getUUID());
 					continue;
 				}
@@ -838,6 +1023,8 @@ public final class LightSourceService {
 		BlockState state = level.getBlockState(job.pos());
 		if (record == null || !LightSourceBlocks.isManaged(state)
 				|| !record.sourceUuid().equals(job.sourceUuid())) {
+			WhiteFog.LOGGER.info("WHITEFOG_LIGHT_ACTION player={} dimension={} pos={} action=refuel outcome=CANCELLED reason=stale",
+					player.getStringUUID(), job.dimension().identifier(), job.pos());
 			return;
 		}
 		SourceKind kind = LightSourceBlocks.kind(state);
@@ -848,6 +1035,8 @@ public final class LightSourceService {
 		int capacity = LightSourceBlocks.capacity(kind);
 		int remaining = record.remainingTicks();
 		if (!LightFuelPolicy.fits(remaining, job.addition(), capacity)) {
+			WhiteFog.LOGGER.info("WHITEFOG_LIGHT_ACTION player={} dimension={} pos={} action=refuel outcome=REFUSED reason=full",
+					player.getStringUUID(), job.dimension().identifier(), job.pos());
 			long now = server.getTickCount();
 			long lastMessage = FULL_MESSAGE_COOLDOWN.getOrDefault(player.getUUID(), Long.MIN_VALUE);
 			if (now - lastMessage >= LightConfig.MESSAGE_COOLDOWN_TICKS) {
@@ -867,6 +1056,8 @@ public final class LightSourceService {
 		// lit не трогаем: источник остаётся таким, каким был (заправка не зажигает).
 		store.put(job.pos(), new Record(record.sourceUuid(), record.expectedBlockId(), newRemaining, newRevision,
 				record.managedByPost()));
+		WhiteFog.LOGGER.info("WHITEFOG_LIGHT_ACTION player={} dimension={} pos={} action=refuel outcome=COMPLETE remaining={} lit={}",
+				player.getStringUUID(), job.dimension().identifier(), job.pos(), newRemaining, LightSourceBlocks.isLit(state));
 		sendResult(player, jobToPayload(job), LightRefuelResultPayload.STATUS_OK, newRevision, newRemaining);
 	}
 
@@ -1034,6 +1225,8 @@ public final class LightSourceService {
 		}
 		level.setBlock(pos, LightSourceBlocks.withLit(state, false), Block.UPDATE_ALL);
 		bumpRevision(level, pos);
+		WhiteFog.LOGGER.info("WHITEFOG_LIGHT_ACTION player={} dimension={} pos={} action=extinguish outcome=SUCCESS remaining={}",
+				player.getStringUUID(), level.dimension().identifier(), pos, info.remaining());
 		sendPanel(player, level, pos, SourceActionPolicy.STATUS_OK);
 	}
 
@@ -1058,6 +1251,8 @@ public final class LightSourceService {
 		}
 		level.setBlock(pos, LightSourceBlocks.withLit(state, true), Block.UPDATE_ALL);
 		bumpRevision(level, pos);
+		WhiteFog.LOGGER.info("WHITEFOG_LIGHT_ACTION player={} dimension={} pos={} action=relight outcome=SUCCESS remaining={}",
+				player.getStringUUID(), level.dimension().identifier(), pos, info.remaining());
 		sendPanel(player, level, pos, SourceActionPolicy.STATUS_OK);
 	}
 
@@ -1079,6 +1274,8 @@ public final class LightSourceService {
 		if (addition <= 0) {
 			// Заправка без подходящего топлива — отказ, а НЕ авто-зажигание.
 			sendPanel(player, level, pos, SourceActionPolicy.STATUS_NO_FUEL);
+			WhiteFog.LOGGER.info("WHITEFOG_LIGHT_ACTION player={} dimension={} pos={} action=refuel outcome=REFUSED reason=no_fuel",
+					player.getStringUUID(), level.dimension().identifier(), pos);
 			return;
 		}
 		if (JOBS.containsKey(playerId)) {
@@ -1097,6 +1294,8 @@ public final class LightSourceService {
 		long now = player.level().getServer() == null ? 0L : player.level().getServer().getTickCount();
 		JOBS.put(playerId, new RefuelJob(level.dimension(), pos.immutable(), info.sourceUuid(),
 				mainHand.copy(), fuel, addition, now));
+		WhiteFog.LOGGER.info("WHITEFOG_LIGHT_ACTION player={} dimension={} pos={} action=refuel outcome=STARTED addition={}",
+				player.getStringUUID(), level.dimension().identifier(), pos, addition);
 		sendPanel(player, level, pos, SourceActionPolicy.STATUS_ACCEPTED);
 	}
 
@@ -1141,7 +1340,7 @@ public final class LightSourceService {
 	}
 
 	private static PanelSignature signature(PanelInfo info) {
-		return new PanelSignature(info.revision(), info.remaining(), info.lit());
+		return new PanelSignature(info.pos().immutable(), info.revision(), info.remaining(), info.lit());
 	}
 
 	/** Сбрасывает runtime-состояние открытой панели игрока. */

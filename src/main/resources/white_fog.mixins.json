@@ -21,7 +21,9 @@
 		"light.BlockPopResourceMixin",
 		"light.FlintAndSteelItemMixin",
 		"light.FireChargeItemMixin",
-		"light.PistonBaseBlockMixin"
+		"light.PistonBaseBlockMixin",
+		"light.ServerPlayerGameModeDropContextMixin",
+		"shelter.LevelChunkShelterMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

@@ -39,6 +39,8 @@ public final class SelfTest {
 			testPlacementBlockIdMismatch();
 			testPlacementSupportPosition();
 			testPlacementNormalPosition();
+			testFuelRoundTrips();
+			testDiagnosticRegression();
 			testLayoutButtonsPadded();
 			testLayoutOldButtonsTooNarrow();
 			testLayoutBounded();
@@ -164,6 +166,54 @@ public final class SelfTest {
 		store.tickLevel(world);
 		check("placement.normal.survives", store.size() == 1);
 		check("placement.normal.atPos", store.hasRecordAt(torch));
+	}
+
+	// ------------------------------------------------------------------
+	// Ground source fuel persistence
+	// ------------------------------------------------------------------
+
+	private static void testFuelRoundTrips() {
+		for (String blockId : List.of("minecraft:torch", "minecraft:wall_torch")) {
+			for (boolean customBreak : List.of(true, false)) {
+				checkRoundTrip(blockId, customBreak, new RoundTripModel.Fuel(2400, false));
+				checkRoundTrip(blockId, customBreak, new RoundTripModel.Fuel(0, false));
+				checkRoundTrip(blockId, customBreak, new RoundTripModel.Fuel(2400, true));
+			}
+		}
+		RoundTripModel oldOrder = new RoundTripModel();
+		oldOrder.place("minecraft:torch", "0,0,0", new RoundTripModel.Fuel(2400, false));
+		RoundTripModel.Fuel stateAfterRemoval = oldOrder.customBreak("0,0,0");
+		check("roundTrip.customBreak.capturesStateBeforeRemoval", !stateAfterRemoval.lit());
+	}
+
+	private static void checkRoundTrip(String blockId, boolean customBreak, RoundTripModel.Fuel initial) {
+		String pos = blockId + (customBreak ? ":custom" : ":vanilla");
+		RoundTripModel model = new RoundTripModel();
+		model.place(blockId, pos, initial);
+		RoundTripModel.Fuel item = customBreak ? model.customBreak(pos) : model.vanillaBreak(pos);
+		check("roundTrip." + blockId + "." + (customBreak ? "custom" : "vanilla")
+				+ ".dropRemaining." + initial.remaining(), item.remaining() == initial.remaining());
+		check("roundTrip." + blockId + "." + (customBreak ? "custom" : "vanilla")
+				+ ".dropLit." + initial.remaining() + "." + initial.lit(), item.lit() == initial.lit());
+		model.placeAfterDrop(blockId, pos, item);
+		RoundTripModel.Fuel placed = model.block(pos);
+		check("roundTrip." + blockId + "." + (customBreak ? "custom" : "vanilla")
+				+ ".replaceLit." + initial.remaining() + "." + initial.lit(), placed.lit() == initial.lit());
+	}
+
+	private static void testDiagnosticRegression() {
+		DiagnosticsModel.Shelter failed = DiagnosticsModel.preserveNonCachedReason("OPEN_VOLUME");
+		check("diagnostic.shelter.nonCachedReasonPreserved", failed.reason().equals("OPEN_VOLUME") && !failed.cached());
+		DiagnosticsModel.Sample noSample = DiagnosticsModel.noSample();
+		check("diagnostic.exposure.noSampleExplicit", !noSample.sampled() && noSample.tick() == Long.MIN_VALUE);
+		check("diagnostic.hand.corruptChargedNotBurning", !DiagnosticsModel.burning(true, 2, 2400, true));
+		check("diagnostic.hand.unknownNotBurning", !DiagnosticsModel.burning(false, 1, 2400, true));
+		check("diagnostic.hand.validBurning", DiagnosticsModel.burning(true, 1, 2400, true));
+		RoundTripModel.Fuel old = RoundTripModel.oldFallbackDrop(new RoundTripModel.Fuel(2400, false), true);
+		check("roundTrip.oldFallbackRelitBugReproduced", old.lit());
+		RoundTripModel.Context c = new RoundTripModel.Context("minecraft:overworld", "TORCH", "0,0,0",
+				new RoundTripModel.Fuel(2400, false));
+		check("roundTrip.contextIncludesDimensionKind", c.dimension().equals("minecraft:overworld") && c.kind().equals("TORCH"));
 	}
 
 	// ------------------------------------------------------------------

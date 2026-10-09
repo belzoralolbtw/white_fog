@@ -33,10 +33,21 @@ import java.util.Optional;
  * Nether/End не получают фиктивного солнца.</p>
  */
 public final class EternalNightWorld {
+	public record Diagnostic(boolean advanceTime, long totalTicks, long timeOfDay, String clock) { }
 	private static boolean registered = false;
 	private static boolean logged = false;
 
 	private EternalNightWorld() {
+	}
+
+	public static Diagnostic diagnostics(MinecraftServer server) {
+		ServerLevel overworld = server.overworld();
+		if (overworld == null) return new Diagnostic(Boolean.TRUE.equals(server.getGameRules().get(GameRules.ADVANCE_TIME)), -1L, -1L, "none");
+		Optional<Holder<WorldClock>> clock = overworld.dimensionType().defaultClock();
+		if (clock.isEmpty()) return new Diagnostic(Boolean.TRUE.equals(server.getGameRules().get(GameRules.ADVANCE_TIME)), -1L, -1L, "none");
+		long ticks = server.clockManager().getTotalTicks(clock.get());
+		return new Diagnostic(Boolean.TRUE.equals(server.getGameRules().get(GameRules.ADVANCE_TIME)), ticks,
+				Math.floorMod(ticks, DarknessConfig.TICKS_PER_DAY), clock.get().unwrapKey().map(k -> k.identifier().toString()).orElse("unknown"));
 	}
 
 	/** Регистрирует lifecycle/tick-хуки вечной ночи. Идемпотентна. */

@@ -1,6 +1,7 @@
 package com.whitefog.station;
 
 import com.whitefog.WhiteFogConfig;
+import com.whitefog.WhiteFog;
 import com.whitefog.content.WhiteFogContent;
 
 import net.minecraft.core.BlockPos;
@@ -53,6 +54,8 @@ public final class SmallStonePickup {
 		}
 		boolean dropped = StationDropHelper.giveOne(player, level, pos,
 				new ItemStack(WhiteFogContent.SMALL_STONE_ITEM));
+		WhiteFog.LOGGER.info("WHITEFOG_SMALL_STONE_PICKUP player={} dimension={} pos={} pendingDrop={}",
+				player.getStringUUID(), level.dimension().identifier(), pos, dropped);
 		if (dropped) {
 			player.sendSystemMessage(Component.literal(WhiteFogConfig.MESSAGE_INVENTORY_FULL), true);
 		}

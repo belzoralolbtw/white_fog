@@ -18,11 +18,12 @@ Set-Location $root
 $logs = Join-Path $root 'logs'
 if (-not (Test-Path $logs)) { New-Item -ItemType Directory -Path $logs | Out-Null }
 
-$stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+$stamp = (Get-Date -Format 'yyyyMMdd_HHmmss_fff') + '_' + [Guid]::NewGuid().ToString('N').Substring(0, 8)
 $log = Join-Path $logs "client_smoke_$stamp.txt"
 $result = Join-Path $logs "client_smoke_$stamp.result"
 
 $timeoutSec = 180
+$watch = [Diagnostics.Stopwatch]::StartNew()
 $status = 'TIMEOUT'
 $proc = $null
 $rootPid = -1
@@ -36,6 +37,7 @@ function Test-LogContains([string]$path, [string]$needle) {
             $sr = New-Object System.IO.StreamReader($fs)
             try { $text = $sr.ReadToEnd() } finally { $sr.Dispose() }
         } finally { $fs.Dispose() }
+        if ($needle -eq 'SHELTER_SUCCESS') { return $text -match 'WHITEFOG_SHELTER_SELFTEST assertions=\d+ handlers=true elapsed_ms=\d+ status=SUCCESS' }
         return $text.Contains($needle)
     } catch {
         return $false
@@ -64,7 +66,11 @@ try {
     $deadline = (Get-Date).AddSeconds($timeoutSec)
     while ((Get-Date) -lt $deadline) {
         Start-Sleep -Seconds 3
-        if (Test-LogContains $log 'MultiPlayerGameModeMixin applied=true') {
+        if ((Test-LogContains $log 'WHITEFOG_SHELTER_SELFTEST') -and (Test-LogContains $log 'status=FAILURE')) {
+            $status = 'FAILURE'
+            break
+        }
+        if ((Test-LogContains $log 'MultiPlayerGameModeMixin applied=true') -and (Test-LogContains $log 'SHELTER_SUCCESS')) {
             $status = 'SUCCESS'
             break
         }
@@ -91,12 +97,18 @@ try {
     # Завершаем ТОЛЬКО собственное дерево процессов по подтверждённому PID запуска.
     # Никаких выборок чужих java/cmd по маске командной строки.
     if ($null -ne $proc -and -not $proc.HasExited) {
-        try { & taskkill /PID $rootPid /T /F 2>&1 | Out-Null } catch { }
+        try {
+            $owned = Get-CimInstance Win32_Process -Filter "ProcessId=$rootPid"
+            if ($null -eq $owned -or -not $owned.CommandLine.Contains($log)) { throw 'Cannot verify owned smoke command' }
+            & taskkill /PID $rootPid /T /F 2>&1 | Out-Null
+            if (-not $proc.WaitForExit(2000)) { throw 'Owned smoke tree did not exit' }
+        } catch { $status = 'FAILURE'; $_.Exception.ToString() | Add-Content -Encoding utf8 $log }
     }
     Start-Sleep -Seconds 4
 
     "status=$status" | Set-Content -Encoding utf8 $result
     "rootPid=$rootPid" | Add-Content -Encoding utf8 $result
+    "elapsed_ms=$($watch.ElapsedMilliseconds)" | Add-Content -Encoding utf8 $result
     "log=$log" | Add-Content -Encoding utf8 $result
 
     Write-Output "[client-smoke] status=$status"
