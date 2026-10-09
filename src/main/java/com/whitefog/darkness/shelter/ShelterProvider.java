@@ -59,6 +59,20 @@ public final class ShelterProvider {
         }
     }
 
+    /**
+     * Read-only проверка укрытия в произвольной loaded позиции (кандидат тёмного спавна, этап 1.8).
+     * Использует тот же detector без записи в per-player cache и без загрузки чанков. При ошибке
+     * чтения возвращает {@code false} (не укрытие) и пишет dev-диагностику — как и сам detector.
+     */
+    public static boolean isShelteredAt(ServerLevel level, BlockPos feet) {
+        try {
+            return CACHE.diagnose(dimension(level), pos(feet), new LoadedView(level)).valid();
+        } catch (RuntimeException error) {
+            readFailed(dimension(level), pos(feet), error);
+            return false;
+        }
+    }
+
     /** Read-only diagnostic view; performs the same loaded-only sample as exposure. */
     public static Diagnostic diagnostics(ServerPlayer player) {
         if (!player.isAlive()) {

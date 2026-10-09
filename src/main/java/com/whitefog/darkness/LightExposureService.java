@@ -2,6 +2,9 @@ package com.whitefog.darkness;
 
 import com.whitefog.WhiteFog;
 import com.whitefog.WhiteFogAttachments;
+import com.whitefog.darkness.light.LightConfig;
+import com.whitefog.darkness.light.LightFuelPolicy;
+import com.whitefog.darkness.light.LightSourceService;
 import com.whitefog.darkness.light.PortableLightService;
 import com.whitefog.darkness.shelter.ShelterProvider;
 import com.whitefog.network.DarknessSnapshotPayload;
@@ -12,6 +15,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -22,6 +26,7 @@ import net.minecraft.world.level.LightLayer;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -284,26 +289,24 @@ public final class LightExposureService {
 	// ------------------------------------------------------------------
 
 	/**
-	 * Решает, нужно ли отправить снимок: по изменению ревизии/полей либо по heartbeat.
-	 * Минимальный интервал между снимками соблюдается; heartbeat его перекрывает.
+	 * Решает, нужно ли отправить снимок: при изменении не чаще, чем раз в
+	 * {@link DarknessConfig#SNAPSHOT_MIN_INTERVAL_TICKS} тиков, плюс heartbeat каждые
+	 * {@link DarknessConfig#SNAPSHOT_HEARTBEAT_TICKS}. Поле источника — из существующего light-service
+	 * ({@code nearest(eyePos, 8)}), поля целей — из persistent-состояния игрока.
 	 */
 	private static void maybeSync(MinecraftServer server, ServerPlayer player, PlayerSurvivalState state,
 			Session session) {
 		int now = server.getTickCount();
 		long since = session.hasSent ? (long) now - session.lastSyncTick : Long.MAX_VALUE;
-		boolean changed = !session.hasSent
-				|| state.getDarknessRevision() != session.lastSyncedRevision
-				|| session.lastBlockLight != session.lastSentBlockLight
-				|| session.lastShelter != session.lastSentShelter
-				|| session.lastSpeedRestricted != session.lastSentSpeedRestricted;
-		boolean periodic = since >= DarknessConfig.SNAPSHOT_HEARTBEAT_TICKS;
-		if (!changed && !periodic) {
-			return;
-		}
 		if (session.hasSent && since < DarknessConfig.SNAPSHOT_MIN_INTERVAL_TICKS) {
-			return;
+			return; // throttle: changed no more often than every 5 ticks
 		}
-		sendSnapshot(server, player, state, session);
+		DarknessSnapshotPayload candidate = buildPayload(player, state, session);
+		if (session.hasSent && candidate.equals(session.lastSent)
+				&& since < DarknessConfig.SNAPSHOT_HEARTBEAT_TICKS) {
+			return; // unchanged and the 100-tick heartbeat is not due yet
+		}
+		sendPayload(player, candidate, now, session);
 	}
 
 	/** Немедленный снимок (вход/reспавн/смена измерения), без ограничения минимального интервала. */
@@ -312,35 +315,60 @@ public final class LightExposureService {
 		PlayerSurvivalState state = WhiteFogAttachments.getOrCreate(player);
 		// После load/join guard равен now: offline-время не симулируется.
 		session.lastProcessedTick = server.getTickCount();
-		sendSnapshot(server, player, state, session);
+		DarknessSnapshotPayload payload = buildPayload(player, state, session);
+		sendPayload(player, payload, server.getTickCount(), session);
 	}
 
-	/** Принудительно отправляет снимок и обновляет bookkeeping синхронизации. */
-	private static void sendSnapshot(MinecraftServer server, ServerPlayer player, PlayerSurvivalState state,
+	/**
+	 * Собирает снимок HUD. Light/exposure/condition/shelter — из текущего sample; источник — из
+	 * {@link LightSourceService#nearest}; цели — из persistent-состояния. Источник необязателен:
+	 * при отсутствии {@code sourceItemId = null}, {@code sourceRemainingTicks = -1}.
+	 */
+	private static DarknessSnapshotPayload buildPayload(ServerPlayer player, PlayerSurvivalState state,
 			Session session) {
-		if (!ServerPlayNetworking.canSend(player, DarknessSnapshotPayload.TYPE)) {
-			return;
-		}
 		int blockLight = session.hasSampled ? session.lastBlockLight : peekBlockLight(player);
 		boolean shelter = session.hasSampled && session.lastShelter;
-		boolean speedRestricted = state.getLightExposure() >= DarknessConfig.SPEED_RESTRICT_EXPOSURE_THRESHOLD;
-		int now = server.getTickCount();
-
-		ServerPlayNetworking.send(player, new DarknessSnapshotPayload(
+		String sourceItemId = null;
+		int sourceRemainingTicks = -1;
+		try {
+			if (player.level() instanceof ServerLevel level) {
+				Optional<LightSourceService.Snapshot> nearest = LightSourceService.nearest(level,
+						player.getEyePosition(), LightConfig.NEAREST_RADIUS);
+				if (nearest.isPresent()) {
+					sourceItemId = LightFuelPolicy.itemId(nearest.get().kind());
+					sourceRemainingTicks = nearest.get().remaining();
+				}
+			}
+		} catch (RuntimeException e) {
+			// Источник — необязательное поле: сбой поиска не должен ломать основной снимок тьмы.
+			sourceItemId = null;
+			sourceRemainingTicks = -1;
+		}
+		return new DarknessSnapshotPayload(
 				state.getDarknessRevision(),
 				blockLight,
 				state.getLightExposure(),
-				state.getSafeLightTicks(),
 				state.getDarknessConditionMilli(),
 				shelter,
-				speedRestricted));
+				sourceItemId,
+				sourceRemainingTicks,
+				state.activeGoalId(),
+				state.getPostCount(),
+				state.getFinalState(),
+				state.getFinalRemainingTicks(),
+				state.getFinalFuelTicks(),
+				state.getWaveRemainingTicks());
+	}
 
+	/** Отправляет готовый снимок и обновляет bookkeeping синхронизации. */
+	private static void sendPayload(ServerPlayer player, DarknessSnapshotPayload payload, int now, Session session) {
+		if (!ServerPlayNetworking.canSend(player, DarknessSnapshotPayload.TYPE)) {
+			return;
+		}
+		ServerPlayNetworking.send(player, payload);
 		session.hasSent = true;
-		session.lastSyncedRevision = state.getDarknessRevision();
 		session.lastSyncTick = now;
-		session.lastSentBlockLight = blockLight;
-		session.lastSentShelter = shelter;
-		session.lastSentSpeedRestricted = speedRestricted;
+		session.lastSent = payload;
 	}
 
 	/** Текущий block light клетки глаза (для немедленного снимка до первого sample). */
@@ -402,11 +430,9 @@ public final class LightExposureService {
 		private boolean lastShelter = false;
 		private boolean lastSpeedRestricted = false;
 		private boolean hasSent = false;
-		private long lastSyncedRevision = -1L;
 		private long lastSyncTick = Long.MIN_VALUE;
-		private int lastSentBlockLight = 0;
-		private boolean lastSentShelter = false;
-		private boolean lastSentSpeedRestricted = false;
+		/** Последний отправленный снимок (для сравнения изменений всех полей, включая источник/цели). */
+		private DarknessSnapshotPayload lastSent = null;
 		private int lastVanillaBlockLight = 0;
 		private int lastEffectiveBlockLight = 0;
 		private int lastPortableEmission = 0;

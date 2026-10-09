@@ -6,15 +6,27 @@ A Minecraft **26.2** **Fabric** mod that builds a survival foundation on a
 
 ## Status / roadmap
 
-- **Upper-level roadmap stages 1.1–1.7 are implemented.** Stages 1.1–1.6 and the post-1.6 bugfix/stabilization work
+- **Upper-level roadmap stages 1.1–1.9 are implemented.** Stages 1.1–1.6 and the post-1.6 bugfix/stabilization work
   were manually verified in-game by the user across the main mechanics.
-- All later work (fading light sources, the Darkness pulse fix, dynamic light, HUD, the source menu and UI) shipped
-  as **post-1.6 bugfix/stabilization, not as separate roadmap stages 1.7/1.8/1.9/1.10/1.11**.
+- All post-1.6 work (fading light sources, the Darkness pulse fix, dynamic light, the source menu and the menu/UI
+  passes) shipped as **post-1.6 bugfix/stabilization, not as separate roadmap stages**. The actual roadmap stages
+  after that are 1.7 (shelter detector), 1.8 (dark-ambient spawning) and 1.9 (compact light/goal HUD); stages
+  1.7–1.9 have **automatic verification only** (sandbox, build, bounded smokes) and their **live acceptance is
+  still pending**.
 - **Roadmap stage 1.7 «Закрытое укрытие и адаптер света» (shelter detector) is implemented** in
   `darkness/shelter/` and wired into `LightExposureService.isSheltered(...)`. Its **automatic verification**
   (sandbox `tests/eternal_darkness/shelter/`, build and bounded server/client smokes) passes; the **live in-game
   acceptance is still pending** (cave room, built house, stationary player / another player's door change, chunk
   boundary and two players).
+- **Roadmap stage 1.8 «Опасность тёмных участков» (dark-ambient hostile spawning) is implemented** in
+  `darkness/spawn/` (pure `DarkSpawnPolicy`/`DarkMobState` plus the server `DarkSpawnService`/`DarkSpawnStore`)
+  and runs as a second pass inside the single `END_SERVER_TICK`. Its **automatic verification** (sandbox
+  `tests/eternal_darkness/spawn/`, build and smokes) passes; **live-world acceptance is pending**.
+- **Roadmap stage 1.9 «Компактный HUD света и целей» is implemented** in `darkness/goal/`,
+  `darkness/SnapshotRevisionGate`, `darkness/light/LightTieBreak` and the client `client/hud/` widgets behind one
+  `root_hud` element. Its **automatic verification** (sandbox `tests/eternal_darkness/hud/`, build and smokes that
+  assert `WHITEFOG_HUD_SELFTEST ... status=SUCCESS`) passes; the **live visual GUI acceptance is pending**. The
+  current in-game display differs from the original stage-1.9 design — see **HUD display mode**.
 
 ## Requirements
 
@@ -46,7 +58,7 @@ Run the client (requires manual stop; do not launch bare):
 gradlew.bat runClient --no-daemon --console=plain
 ```
 
-## Implemented (roadmap stages 1.1–1.7 + post-1.6 bugfixes)
+## Implemented (roadmap stages 1.1–1.9 + post-1.6 bugfixes)
 
 - **Stage 1.1** — persistent, server-authoritative player survival state
   (Fabric Data Attachment API v1, NBT-backed, `copyOnDeath`) with an S2C
@@ -207,6 +219,60 @@ gradlew.bat runClient --no-daemon --console=plain
     darkness light fix, shelter), build and bounded server/client smokes pass.
     Live in-game acceptance of the diagnostic command and the whole action chain
     is still pending.
+- **Stage 1.8** — dark-ambient hostile spawning (server-authoritative). A second pass inside the
+  single `END_SERVER_TICK` (`WhiteFogServer.onEndServerTick` → `DarkSpawnService.tickAll`) runs only
+  every 100 loaded server ticks. Per non-Peaceful level it collects loaded **block-ticking** chunks
+  (`ServerChunkCache.chunkMap.forEachBlockTickingChunk`) and, for a chunk near a vulnerable player
+  (`exposure>=75`, 24..32 blocks from the chunk centre), may add exactly one vanilla
+  zombie/skeleton/spider/creeper carrying a persistent `DARK_AMBIENT` marker. The caps (2 per chunk,
+  12 per dimension) are checked before the candidate search and reserved again before
+  `addFreshEntity`; the seed/RNG, the 8 candidate offsets and the type rotation
+  (`successfulSpawns % 4`) are deterministic; a candidate needs a full solid floor, air, no fluid,
+  no collision, block light `<=4` (the sky channel is ignored) and
+  `!ShelterProvider.isShelteredAt(...)`. Peaceful disables the pass wholesale; vanilla natural
+  spawning, loot and combat are untouched. **Automatic verification only** (sandbox
+  `tests/eternal_darkness/spawn/`, build, smokes); live-world acceptance is pending.
+- **Stage 1.9** — compact light/goal HUD. One root HUD element (`white_fog:root_hud`, `WhiteFogHud`,
+  Fabric `HudElementRegistry.addLast`) owns the panels; the old HUD stub and the `G` Work Panel are
+  consolidated into it, so there is exactly one registration. The existing
+  `white_fog:darkness_snapshot` payload is extended in place (`revision/light/exposure/conditionMilli/
+  shelter/source/remaining/goal/post/final/wave`, one hand-written `StreamCodec.of`) and is sent when
+  changed no more often than every 5 ticks, plus a 100-tick heartbeat and immediately on
+  join/respawn/dimension; the client accepts `revision >= last` (equal = heartbeat) and clears on
+  disconnect. Five exact `white_fog:*` goals live in the pure `DarkGoalService` with monotonic
+  completed flags persisted in `PlayerSurvivalState`. The `Текущее задание` goal panel is localized
+  (`goal.white_fog.*`, never raw IDs), wraps to at most two ellipsized lines and is hidden below
+  320×180. **Automatic verification only**; live visual GUI acceptance (pixels, real Cyrillic widths,
+  overlap, action-bar text) is pending. See **HUD display mode** for the current visibility rules.
+
+### HUD display mode
+
+The current in-game display (2026-10-09 user request) replaces the original stage-1.9 compact
+rendering while keeping its production classes and server data:
+
+- The **`G` Work Panel is permanently visible** in normal gameplay, bottom-left. The `G` key **no
+  longer toggles or gates the panel**; it stays a separate quick action that sends the C2S refuel
+  request for a placed source (`WhiteFogClient.consumeClick()` → `white_fog:light_refuel`). Visibility
+  is decided by the pure `DarkHudLayout.workPanelVisible(...)` and hidden only when the whole gameplay
+  HUD is hidden (no player, death, spectator, F1, any open `Screen`).
+- The Work Panel is content-sized in the shared style and shows seven rows: title, the new thin
+  `Тьма: E%` darkness/exposure bar (value = server `DarknessSnapshotPayload.exposure`, normalized and
+  eased by the pure `DarkHudLayout.exposureNormalized`/`DarknessBar`), the nearest placed source, the
+  fuel/time-to-empty, the offhand light (`В руке: Факел` / `Факел душ`), the eternal-night clock
+  `Ночь · HH:MM`, and a hint/result line for the last operation.
+- The compact `Текущее задание` panel is **back in the top-right** (`GoalWidget`), gated by the pure
+  `DarkHudLayout.stageGoalVisible(...)`: localized goals, at most two ellipsized lines, a 120
+  real-pixel cap, a 4 px right margin, hidden below 320×180.
+- Darkness warnings are **no longer a HUD window**: the root never updates or renders `WarningWidget`
+  and draws no warning rectangle. The pure `DarkWarningPolicy` (thresholds 75/90, a 40-tick visual
+  cooldown on reason change, exactly one emission per reason entry) drives a normal action-bar message
+  via `LocalPlayer.sendOverlayMessage`, localized as `Найди свет` (exposure ≥ 75) and
+  `Тьма истощает тебя` (exposure ≥ 90).
+- The earlier compact status rows `Свет: L/15` / `Тьма: E%` / `Укрытие: да|нет` / source
+  (`LightWidget` + `ExposureWidget`) are **not rendered** in this mode: the widgets stay constructed
+  and their classes/data are kept for future use, but the pure
+  `DarkHudLayout.shouldShowCompactStageHud()`/`compactStageHudVisible(...)` always return `false` and
+  the root does not draw them.
 
 ## Not yet implemented
 
@@ -254,6 +320,17 @@ gradlew.bat runClient --no-daemon --console=plain
   dimension change; plus seven production cache regressions (OPEN_VOLUME/read
   errors/UNLOADED, unchanged cache). `run_api_evidence.bat` records the `javap`
   signatures and local jar hashes. Not a runtime proof; live acceptance pending.
+- `tests\eternal_darkness\spawn\run_dark_spawn_selftest.bat` — logic-only sandbox for the stage 1.8
+  dark-ambient spawn policy/state (production pure classes): roll/permits, exposure 74/75, distance
+  23.99/24/32/32.01, block light 4/5, per-chunk/per-dimension caps, type rotation, target selection,
+  duplicate-UUID idempotency, unload/load cleanup, deterministic seed and persistent attempt
+  round-trip. Not a runtime/live-spawn proof; live acceptance pending.
+- `tests\eternal_darkness\hud\run_hud_selftest.bat` — logic-only sandbox for the stage 1.9 compact
+  HUD (production pure `DarkGoalService`, `SnapshotRevisionGate`, `LightTieBreak`,
+  `PortableLightPolicy`, `LightConfig`, `DarkHudLayout`, `HudSourceDisplay`, `DarkWarningPolicy`,
+  `DarknessBar`) plus source-scan regressions for the single root, the `G` key separation, the
+  retained widgets and the action-bar warning path. Not a pixel/runtime proof; live GUI acceptance
+  pending.
 - `tests\darkness_visual\run_darkness_visual_selftest.bat` and
   `tests\portable_light_dynamic\run_portable_light_dynamic_selftest.bat` —
   logic-only sandboxes for the client visual adapter (no-pulse envelope) and the

@@ -8,6 +8,7 @@ import com.whitefog.darkness.LightExposureService;
 import com.whitefog.darkness.light.LightSourceInteractions;
 import com.whitefog.darkness.light.LightSourceService;
 import com.whitefog.darkness.light.PortableLightService;
+import com.whitefog.darkness.spawn.DarkSpawnService;
 import com.whitefog.network.WhiteFogPayloads;
 import com.whitefog.server.WhiteFogServer;
 import com.whitefog.station.FlatStoneInteractions;
@@ -78,6 +79,9 @@ public class WhiteFog implements ModInitializer {
 
 		// 11) Переносной свет (этап поверх 1.6): серверный адаптер left-hand факела в exposure.
 		PortableLightService.register();
+
+		// 12) Опасность тёмных участков (этап 1.8): marker-вложение + индекс loaded мобов.
+		DarkSpawnService.register();
 
 		LOGGER.info("White Fog common initialized (mod id: {})", MOD_ID);
 	}

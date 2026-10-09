@@ -38,6 +38,7 @@ function Test-LogContains([string]$path, [string]$needle) {
             try { $text = $sr.ReadToEnd() } finally { $sr.Dispose() }
         } finally { $fs.Dispose() }
         if ($needle -eq 'SHELTER_SUCCESS') { return $text -match 'WHITEFOG_SHELTER_SELFTEST assertions=\d+ handlers=true elapsed_ms=\d+ status=SUCCESS' }
+        if ($needle -eq 'HUD_SUCCESS') { return $text -match 'WHITEFOG_HUD_SELFTEST widgets=\d+ registered=true status=SUCCESS' }
         return $text.Contains($needle)
     } catch {
         return $false
@@ -70,7 +71,11 @@ try {
             $status = 'FAILURE'
             break
         }
-        if ((Test-LogContains $log 'MultiPlayerGameModeMixin applied=true') -and (Test-LogContains $log 'SHELTER_SUCCESS')) {
+        if ((Test-LogContains $log 'WHITEFOG_HUD_SELFTEST') -and (Test-LogContains $log 'status=FAILURE')) {
+            $status = 'FAILURE'
+            break
+        }
+        if ((Test-LogContains $log 'MultiPlayerGameModeMixin applied=true') -and (Test-LogContains $log 'SHELTER_SUCCESS') -and (Test-LogContains $log 'HUD_SUCCESS')) {
             $status = 'SUCCESS'
             break
         }

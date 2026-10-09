@@ -57,6 +57,21 @@ public final class LightFuelPolicy {
 		};
 	}
 
+	/**
+	 * Id vanilla-предмета источника по виду (этап 1.9). Используется сервером для поля
+	 * {@code sourceItemId} снимка; клиент резолвит его в реальный {@code ItemStack}. Метод чистый
+	 * (без Minecraft) — это лишь строковый идентификатор.
+	 */
+	public static String itemId(SourceKind kind) {
+		return switch (kind) {
+			case TORCH -> "minecraft:torch";
+			case SOUL_TORCH -> "minecraft:soul_torch";
+			case LANTERN -> "minecraft:lantern";
+			case SOUL_LANTERN -> "minecraft:soul_lantern";
+			case CAMPFIRE -> "minecraft:campfire";
+		};
+	}
+
 	/** Генерационный бонус источника в тиках. Для костра зависит от текущего LIT. */
 	public static int generatedBonusTicks(SourceKind kind, boolean lit) {
 		return switch (kind) {

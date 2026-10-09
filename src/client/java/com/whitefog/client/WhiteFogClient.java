@@ -3,7 +3,6 @@ package com.whitefog.client;
 import com.whitefog.WhiteFog;
 import com.whitefog.client.darkness.DarknessVisualGate;
 import com.whitefog.client.dev.ItemModelSelfCheck;
-import com.whitefog.client.hud.LightWorkPanelHud;
 import com.whitefog.client.hud.WhiteFogHud;
 import com.whitefog.client.network.DarknessClientNetworking;
 import com.whitefog.client.network.LightClientNetworking;
@@ -92,11 +91,10 @@ public class WhiteFogClient implements ClientModInitializer {
 		// Этап 1.6: получатели снимка источника и результата refuel.
 		LightClientNetworking.register(lightState);
 
-		// Заглушка HUD (MC 26.2 Fabric HudElementRegistry).
-		WhiteFogHud.register(playerState);
-
-		// Этап 1.6: Work Panel источников света (клавиша G).
-		LightWorkPanelHud.register(lightState);
+		// Этап 1.9: ЕДИНСТВЕННЫЙ корневой HUD-элемент. Он владеет статус-панелью, полоской тьмы,
+		// целью, предупреждением и рабочей панелью света (клавиша G) как детьми. Отдельный
+		// HUD-элемент 1.6 больше НЕ регистрируется (без второго entrypoint).
+		WhiteFogHud.register(playerState, darknessState, lightState);
 
 		// Этап 1.5 (визуальный hotfix): per-frame обновление огибающей модовой тьмы.
 		// Fabric END_EXTRACTION даёт DeltaTracker (frame-delta) и fires раз в кадр в мире;
@@ -142,7 +140,7 @@ public class WhiteFogClient implements ClientModInitializer {
 			logPortableLightState(client);
 		});
 		WhiteFog.LOGGER.info("White Fog: darkness snapshot receiver registered (stage 1.5)");
-		WhiteFog.LOGGER.info("White Fog: light work panel registered (stage 1.6, keybind G)");
+		WhiteFog.LOGGER.info("White Fog: compact light/goal HUD registered (stage 1.9, single root, keybind G work panel)");
 
 		// Сбрасываем кэши при выходе из мира.
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
@@ -174,6 +172,12 @@ public class WhiteFogClient implements ClientModInitializer {
 
 			// Dev-only: проверка реального bake item-моделей контента (см. ItemModelSelfCheck).
 			ItemModelSelfCheck.register();
+
+			// Этап 1.9: dev-only проверка регистрации/раскладки единственного корневого HUD.
+			// Markers для bounded client smoke; НЕ пиксельное/runtime-доказательство.
+			boolean hudOk = WhiteFogHud.selfTest();
+			WhiteFog.LOGGER.info("WHITEFOG_HUD_SELFTEST widgets={} registered={} status={}",
+					5, hudOk, hudOk ? "SUCCESS" : "FAILURE");
 		}
 	}
 

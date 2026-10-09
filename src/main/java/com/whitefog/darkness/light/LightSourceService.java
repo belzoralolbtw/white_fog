@@ -804,13 +804,9 @@ public final class LightSourceService {
 	}
 
 	private static boolean isTieBetter(BlockPos candidate, BlockPos best) {
-		if (candidate.getX() != best.getX()) {
-			return candidate.getX() < best.getX();
-		}
-		if (candidate.getY() != best.getY()) {
-			return candidate.getY() < best.getY();
-		}
-		return candidate.getZ() < best.getZ();
+		// Единая чистая реализация tie-break (этап 1.9) — та же, что проверяет sandbox.
+		return LightTieBreak.better(candidate.getX(), candidate.getY(), candidate.getZ(),
+				best.getX(), best.getY(), best.getZ());
 	}
 
 	private static boolean hasLineOfSight(Level level, Vec3 eye, BlockPos pos) {

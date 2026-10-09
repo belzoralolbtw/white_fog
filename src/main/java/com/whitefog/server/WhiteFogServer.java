@@ -8,6 +8,7 @@ import com.whitefog.darkness.light.LightSourceService;
 import com.whitefog.darkness.light.PortableLightService;
 import com.whitefog.darkness.shelter.ShelterProvider;
 import com.whitefog.darkness.shelter.ShelterRuntimeSelfTest;
+import com.whitefog.darkness.spawn.DarkSpawnService;
 import com.whitefog.server.command.WhiteFogDebugCommand;
 import com.whitefog.state.PlayerSurvivalState;
 import com.whitefog.station.RecoveryService;
@@ -114,6 +115,10 @@ public final class WhiteFogServer {
 		// Этап поверх 1.7: расход топлива предметов-источников в инвентарях (main + offhand,
 		// ровно по одному разу). Второй tick-обработчик не регистрируется.
 		PortableLightService.tickInventories(server);
+
+		// Этап 1.8: дополнительный ограниченный спавн в тёмных участках (каждые 100 тиков,
+		// loaded-only, cap только DARK_AMBIENT). Также в единственном END_SERVER_TICK.
+		DarkSpawnService.tickAll(server);
 	}
 
 	/** Отключение игрока: сбрасываем сессию разрушения, подсказки и recovery (этапы 1.3/1.4). */

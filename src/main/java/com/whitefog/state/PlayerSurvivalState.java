@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 
 import com.whitefog.WhiteFogConfig;
 import com.whitefog.darkness.DarknessConfig;
+import com.whitefog.darkness.goal.DarkGoalService;
 
 import net.minecraft.nbt.CompoundTag;
 
@@ -64,6 +65,13 @@ public final class PlayerSurvivalState {
 	private static final String TAG_DARKNESS_CONDITION_MILLI = "darkness_condition_milli";
 	private static final String TAG_DARKNESS_REVISION = "darkness_revision";
 
+	// --- Ключи NBT этапа 1.9 (цели игрока) ---
+	private static final String TAG_POST_COUNT = "goal_post_count";
+	private static final String TAG_FINAL_STATE = "goal_final_state";
+	private static final String TAG_FINAL_REMAINING = "goal_final_remaining_ticks";
+	private static final String TAG_FINAL_FUEL = "goal_final_fuel_ticks";
+	private static final String TAG_WAVE_REMAINING = "goal_wave_remaining_ticks";
+
 	// ------------------------------------------------------------------
 	// Игровое состояние (сохраняется и синхронизируется)
 	// ------------------------------------------------------------------
@@ -123,6 +131,27 @@ public final class PlayerSurvivalState {
 	private int darknessConditionMilli = DarknessConfig.CONDITION_MILLI_MAX;
 	/** Ревизия полей тьмы: увеличивается при изменении для детекта синхронизации снимка тьмы. */
 	private long darknessRevision = 0L;
+
+	// ------------------------------------------------------------------
+	// Этап 1.9 — цели игрока (сохраняется; монотонные флаги выполнения)
+	// ------------------------------------------------------------------
+
+	/**
+	 * Флаги выполнения целей в порядке {@link DarkGoalService#ORDER}. Отсутствующие в NBT флаги
+	 * читаются как {@code false}. Отметка монотонна (см. {@link DarkGoalService#markCompleted});
+	 * активная цель — первая невыполненная ({@link DarkGoalService#firstIncomplete}).
+	 */
+	private final boolean[] goalCompleted = DarkGoalService.defaultFlags();
+	/** Число активных постов (DTO до появления поставщика, по умолчанию 0). */
+	private int postCount = DarkGoalService.DEFAULT_POST_COUNT;
+	/** Финальное состояние (DTO до появления поставщика, по умолчанию LOCKED). */
+	private String finalState = DarkGoalService.DEFAULT_FINAL_STATE;
+	/** Остаток финального испытания в тиках (DTO по умолчанию 72000). */
+	private long finalRemainingTicks = DarkGoalService.DEFAULT_FINAL_REMAINING_TICKS;
+	/** Топливо финального испытания (DTO по умолчанию 0). */
+	private long finalFuelTicks = DarkGoalService.DEFAULT_FINAL_FUEL_TICKS;
+	/** Остаток волны (DTO по умолчанию 0). */
+	private long waveRemainingTicks = DarkGoalService.DEFAULT_WAVE_REMAINING_TICKS;
 
 	// ------------------------------------------------------------------
 	// Служебные поля синхронизации (НЕ сохраняются и НЕ синхронизируются)
@@ -208,6 +237,25 @@ public final class PlayerSurvivalState {
 		// Существующий Condition отображает результат: милли — источник истины.
 		state.condition = state.darknessConditionMilli / 1000.0F;
 		state.darknessRevision = Math.max(0L, tag.getLongOr(TAG_DARKNESS_REVISION, 0L));
+
+		// --- Этап 1.9: флаги целей и DTO-поля. Отсутствующие флаги = false (обратная совместимость). ---
+		for (String goalId : DarkGoalService.ORDER) {
+			int index = DarkGoalService.indexOf(goalId);
+			if (index >= 0 && tag.getBooleanOr(DarkGoalService.nbtKey(goalId), false)) {
+				state.goalCompleted[index] = true;
+			}
+		}
+		state.postCount = Math.max(0, tag.getIntOr(TAG_POST_COUNT, DarkGoalService.DEFAULT_POST_COUNT));
+		String storedFinalState = tag.getStringOr(TAG_FINAL_STATE, DarkGoalService.DEFAULT_FINAL_STATE);
+		state.finalState = storedFinalState == null || storedFinalState.isEmpty()
+				? DarkGoalService.DEFAULT_FINAL_STATE : storedFinalState;
+		state.finalRemainingTicks = Math.max(0L,
+				tag.getLongOr(TAG_FINAL_REMAINING, DarkGoalService.DEFAULT_FINAL_REMAINING_TICKS));
+		state.finalFuelTicks = Math.max(0L,
+				tag.getLongOr(TAG_FINAL_FUEL, DarkGoalService.DEFAULT_FINAL_FUEL_TICKS));
+		state.waveRemainingTicks = Math.max(0L,
+				tag.getLongOr(TAG_WAVE_REMAINING, DarkGoalService.DEFAULT_WAVE_REMAINING_TICKS));
+
 		// Служебные поля синхронизации всегда начинают с чистого листа.
 		state.invalidateSync();
 		state.normalize();
@@ -254,6 +302,16 @@ public final class PlayerSurvivalState {
 		tag.putInt(TAG_SAMPLE_REMAINDER, this.sampleRemainderTicks);
 		tag.putInt(TAG_DARKNESS_CONDITION_MILLI, this.darknessConditionMilli);
 		tag.putLong(TAG_DARKNESS_REVISION, this.darknessRevision);
+
+		// --- Этап 1.9: цели игрока ---
+		for (String goalId : DarkGoalService.ORDER) {
+			tag.putBoolean(DarkGoalService.nbtKey(goalId), DarkGoalService.isCompleted(this.goalCompleted, goalId));
+		}
+		tag.putInt(TAG_POST_COUNT, this.postCount);
+		tag.putString(TAG_FINAL_STATE, this.finalState);
+		tag.putLong(TAG_FINAL_REMAINING, this.finalRemainingTicks);
+		tag.putLong(TAG_FINAL_FUEL, this.finalFuelTicks);
+		tag.putLong(TAG_WAVE_REMAINING, this.waveRemainingTicks);
 		return tag;
 	}
 
@@ -304,6 +362,23 @@ public final class PlayerSurvivalState {
 		this.condition = this.darknessConditionMilli / 1000.0F;
 		if (this.darknessRevision < 0L) {
 			this.darknessRevision = 0L;
+		}
+
+		// --- Этап 1.9: цели игрока ---
+		if (this.postCount < 0) {
+			this.postCount = 0;
+		}
+		if (this.finalState == null || this.finalState.isEmpty()) {
+			this.finalState = DarkGoalService.DEFAULT_FINAL_STATE;
+		}
+		if (this.finalRemainingTicks < 0L) {
+			this.finalRemainingTicks = 0L;
+		}
+		if (this.finalFuelTicks < 0L) {
+			this.finalFuelTicks = 0L;
+		}
+		if (this.waveRemainingTicks < 0L) {
+			this.waveRemainingTicks = 0L;
 		}
 	}
 
@@ -660,6 +735,122 @@ public final class PlayerSurvivalState {
 	}
 
 	// ------------------------------------------------------------------
+	// Этап 1.9 — цели игрока (server-authoritative API)
+	// ------------------------------------------------------------------
+
+	/**
+	 * Серверный API отметки цели: монотонно ставит флаг ЦЕЛИ, если ID известен
+	 * ({@link DarkGoalService#isKnown}). Повтор безопасен, неизвестный ID отклоняется без изменения.
+	 * Возвращает {@code true}, только если состояние реально изменилось.
+	 *
+	 * <p>Отметка более поздней цели раньше ранней допустима (флаг сохраняется), но активная цель
+	 * не перескакивает через первую невыполненную (см. {@link #activeGoalId()}).</p>
+	 */
+	public boolean markGoal(String goalId) {
+		if (!DarkGoalService.markCompleted(this.goalCompleted, goalId)) {
+			return false;
+		}
+		bumpRevision();
+		bumpDarknessRevision();
+		return true;
+	}
+
+	/** Выполнена ли цель. */
+	public boolean isGoalCompleted(String goalId) {
+		return DarkGoalService.isCompleted(this.goalCompleted, goalId);
+	}
+
+	/** Активная цель — первая невыполненная по порядку (или {@code white_fog:complete}). */
+	public String activeGoalId() {
+		return DarkGoalService.firstIncomplete(this.goalCompleted);
+	}
+
+	/** Копия флагов выполнения (для диагностики; изменение копии не влияет на состояние). */
+	public boolean[] goalCompletedCopy() {
+		return this.goalCompleted.clone();
+	}
+
+	/** Число активных постов (DTO). */
+	public int getPostCount() {
+		return this.postCount;
+	}
+
+	/** Задаёт число активных постов (0..). Меняет ревизию тьмы. */
+	public void setPostCount(int value) {
+		int clamped = Math.max(0, value);
+		if (clamped == this.postCount) {
+			return;
+		}
+		this.postCount = clamped;
+		bumpRevision();
+		bumpDarknessRevision();
+	}
+
+	/** Финальное состояние (DTO, по умолчанию LOCKED). */
+	public String getFinalState() {
+		return this.finalState;
+	}
+
+	/** Задаёт финальное состояние. Меняет ревизию тьмы. */
+	public void setFinalState(String value) {
+		String safe = value == null || value.isEmpty() ? DarkGoalService.DEFAULT_FINAL_STATE : value;
+		if (safe.equals(this.finalState)) {
+			return;
+		}
+		this.finalState = safe;
+		bumpRevision();
+		bumpDarknessRevision();
+	}
+
+	/** Остаток финального испытания в тиках (DTO). */
+	public long getFinalRemainingTicks() {
+		return this.finalRemainingTicks;
+	}
+
+	/** Задаёт остаток финального испытания (0..). Меняет ревизию тьмы. */
+	public void setFinalRemainingTicks(long value) {
+		long clamped = Math.max(0L, value);
+		if (clamped == this.finalRemainingTicks) {
+			return;
+		}
+		this.finalRemainingTicks = clamped;
+		bumpRevision();
+		bumpDarknessRevision();
+	}
+
+	/** Топливо финального испытания (DTO). */
+	public long getFinalFuelTicks() {
+		return this.finalFuelTicks;
+	}
+
+	/** Задаёт топливо финального испытания (0..). Меняет ревизию тьмы. */
+	public void setFinalFuelTicks(long value) {
+		long clamped = Math.max(0L, value);
+		if (clamped == this.finalFuelTicks) {
+			return;
+		}
+		this.finalFuelTicks = clamped;
+		bumpRevision();
+		bumpDarknessRevision();
+	}
+
+	/** Остаток волны (DTO). */
+	public long getWaveRemainingTicks() {
+		return this.waveRemainingTicks;
+	}
+
+	/** Задаёт остаток волны (0..). Меняет ревизию тьмы. */
+	public void setWaveRemainingTicks(long value) {
+		long clamped = Math.max(0L, value);
+		if (clamped == this.waveRemainingTicks) {
+			return;
+		}
+		this.waveRemainingTicks = clamped;
+		bumpRevision();
+		bumpDarknessRevision();
+	}
+
+	// ------------------------------------------------------------------
 	// Отладочное представление (без изменения данных)
 	// ------------------------------------------------------------------
 
@@ -702,6 +893,15 @@ public final class PlayerSurvivalState {
 				.append(" remainder=").append(this.sampleRemainderTicks)
 				.append(" conditionMilli=").append(this.darknessConditionMilli)
 				.append(" darknessRevision=").append(this.darknessRevision)
+				.append(']');
+		sb.append(" goalState=[active=").append(activeGoalId())
+				.append(" completed=").append(DarkGoalService.completedCount(this.goalCompleted))
+				.append('/').append(DarkGoalService.goalCount())
+				.append(" postCount=").append(this.postCount)
+				.append(" finalState=").append(this.finalState)
+				.append(" finalRemaining=").append(this.finalRemainingTicks)
+				.append(" finalFuel=").append(this.finalFuelTicks)
+				.append(" waveRemaining=").append(this.waveRemainingTicks)
 				.append(']');
 		sb.append(" revision=").append(this.revision);
 		return sb.toString();

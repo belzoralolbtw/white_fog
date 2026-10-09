@@ -3,5 +3,21 @@
 	"block.white_fog.small_stone": "Small Stone",
 	"item.white_fog.flat_stone": "Flat Stone",
 	"item.white_fog.small_stone": "Small Stone",
-	"key.white_fog.work_panel": "Light Work Panel"
+	"key.white_fog.work_panel": "Light Work Panel",
+	"hud.white_fog.light": "Light: %s/15",
+	"hud.white_fog.dark": "Darkness: %s%%",
+	"hud.white_fog.shelter.yes": "Shelter: yes",
+	"hud.white_fog.shelter.no": "Shelter: no",
+	"hud.white_fog.fuel": "Fuel: %s s",
+	"hud.white_fog.source.none": "No source nearby",
+	"hud.white_fog.source.held": "In hand: %s · %s s",
+	"hud.white_fog.source.kind.torch": "Torch",
+	"hud.white_fog.source.kind.soul_torch": "Soul Torch",
+	"hud.white_fog.warning.find_light": "Find light",
+	"hud.white_fog.warning.drain": "Darkness is draining you",
+	"goal.white_fog.find_observatory": "Find the observatory",
+	"goal.white_fog.activate_posts": "Activate the posts",
+	"goal.white_fog.build_beacon": "Build the beacon",
+	"goal.white_fog.endure_darkness": "Endure the darkness",
+	"goal.white_fog.complete": "Survive the night"
 }

@@ -3,5 +3,21 @@
 	"block.white_fog.small_stone": "Камушка",
 	"item.white_fog.flat_stone": "Плоский камень",
 	"item.white_fog.small_stone": "Камушка",
-	"key.white_fog.work_panel": "Панель работы света"
+	"key.white_fog.work_panel": "Панель работы света",
+	"hud.white_fog.light": "Свет: %s/15",
+	"hud.white_fog.dark": "Тьма: %s%%",
+	"hud.white_fog.shelter.yes": "Укрытие: да",
+	"hud.white_fog.shelter.no": "Укрытие: нет",
+	"hud.white_fog.fuel": "Топливо: %s с",
+	"hud.white_fog.source.none": "Источник не найден",
+	"hud.white_fog.source.held": "В руке: %s · %s с",
+	"hud.white_fog.source.kind.torch": "Факел",
+	"hud.white_fog.source.kind.soul_torch": "Факел душ",
+	"hud.white_fog.warning.find_light": "Найди свет",
+	"hud.white_fog.warning.drain": "Тьма истощает тебя",
+	"goal.white_fog.find_observatory": "Найди обсерваторию",
+	"goal.white_fog.activate_posts": "Активируй посты",
+	"goal.white_fog.build_beacon": "Построй маяк",
+	"goal.white_fog.endure_darkness": "Выдержи тьму",
+	"goal.white_fog.complete": "Переживи ночь"
 }
